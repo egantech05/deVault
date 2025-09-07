@@ -48,6 +48,7 @@ export const localStyles = StyleSheet.create({
     headerRight: {
         flex: 0.1,
         paddingHorizontal: 32,
+        alignItems: "flex-end",
         
     },
 });

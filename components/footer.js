@@ -20,8 +20,7 @@ export const localStyles = StyleSheet.create({
         justifyContent:"center",
         alignItems: "center",
         paddingVertical: 16,
-        borderColor: "red",
-        borderWidth: 1,
+
 
     },
 
