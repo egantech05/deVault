@@ -3,7 +3,7 @@ import { View, Text,StyleSheet, ScrollView, useWindowDimensions,TextInput,Pressa
 import { colors, commonStyles } from "../components/Styles";
 import { Ionicons } from '@expo/vector-icons';
 
-export default function AssetTemplatesScreen() {
+export default function AssetsScreen() {
   const {width} = useWindowDimensions();
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -35,7 +35,7 @@ export default function AssetTemplatesScreen() {
   return (
     
       <View style={commonStyles.contentContainer}>
-       <Text style={commonStyles.textPrimary}>Asset Templates</Text>
+       <Text style={commonStyles.textPrimary}>Assets</Text>
        <View style={[styles.searchBar]}>
               <Ionicons name="search" size={16} color={"white"} />
               <TextInput style={styles.searchInput} placeholder="Search..." placeholderTextColor={"white"} value={searchQuery} onChangeText={setSearchQuery} />
@@ -49,9 +49,9 @@ export default function AssetTemplatesScreen() {
               <Ionicons name="add" size={addIconSize} color= {colors.brand}/>
             </Pressable>
             <Pressable style={[styles.displayCard, {width:cardSize, height:cardSize}]}>
-              <Text style={[styles.countText, {fontSize: cardSize * 0.10}]}>10</Text>
+              <Text style={[styles.countText, {fontSize: cardSize * 0.10}]}>Drone</Text>
               <View style={styles.nameTextWrap}>
-                <Text style={[styles.nameText, {fontSize: cardSize * 0.15}]}>Drone</Text>
+                <Text style={[styles.nameText, {fontSize: cardSize * 0.15}]}>DX12032</Text>
               </View>
             </Pressable>
             <Pressable style={[styles.displayCard, {width:cardSize, height:cardSize}]}></Pressable>

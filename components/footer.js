@@ -16,7 +16,7 @@ export const Footer = () => {
 
 export const localStyles = StyleSheet.create({
     footer: {
-        backgroundColor: colors.primary,
+        //backgroundColor: colors.primary,
         justifyContent:"center",
         alignItems: "center",
         paddingVertical: 16,
