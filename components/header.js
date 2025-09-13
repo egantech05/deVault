@@ -1,54 +1,37 @@
+// components/header.js
 import React from "react";
-import { View, Text, Pressable } from "react-native";
-import { commonStyles, colors } from "./styles";
-import { StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { commonStyles, colors } from "./styles";
 
-export const Header = () => {
-    return (
-        <View style={localStyles.header}>
-            <Pressable style={localStyles.headerLeft} onPress={""} hitSlop={12} >
-                <Ionicons name="menu" size={32} color={"white"} />
-            </Pressable>
-            <Pressable style={localStyles.headerCenter} onPress={""} hitSlop={12}>
-                <Text style={commonStyles.textTitle}>deVault</Text>
-            </Pressable>
-            <Pressable style={localStyles.headerRight} onPress={""} hitSlop={12}>
-                 <Ionicons name="person-circle-outline" size={32} color={"white"} />
-            </Pressable>
-            
-        </View>
-       
-    );
+export const Header = ({ showMenuBtn, onMenuPress, title = "deVault" }) => {
+  return (
+    <View style={styles.header}>
+      {showMenuBtn ? (
+        <Pressable onPress={onMenuPress} hitSlop={12} style={{ paddingHorizontal: 16 }}>
+          <Ionicons name="menu" size={32} color="white" />
+        </Pressable>
+      ) : (
+        <View style={{ width: 32 }} />
+      )}
+
+      <View style={{ flex: 1, alignItems: "center" }}>
+        <Text style={commonStyles.textTitle}>{title}</Text>
+      </View>
+
+      <Pressable hitSlop={12} style={{ paddingHorizontal: 16 }} onPress={() => { /* profile action */ }}>
+        <Ionicons name="person-circle-outline" size={32} color="white" />
+      </Pressable>
+    </View>
+  );
 };
 
-export const localStyles = StyleSheet.create({
-    header: {
-        backgroundColor: "",
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        paddingVertical: 16,
-        borderColor: "red",
-        borderWidth: 1,
-
-    },
-
-    headerLeft: {
-        flex: 0.1,
-        paddingHorizontal: 32,
-
-    },
-
-    headerCenter: {
-        flex: 1,
-        alignItems: "center",
-    },
-
-    headerRight: {
-        flex: 0.1,
-        paddingHorizontal: 32,
-        alignItems: "flex-end",
-        
-    },
+const styles = StyleSheet.create({
+  header: {
+    backgroundColor: colors.primary,
+    height: 56,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
 });
