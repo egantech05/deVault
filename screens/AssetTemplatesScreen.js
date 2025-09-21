@@ -254,7 +254,7 @@ const removeDetailProperty = (id) => {
   setDetailProps(prev => prev.length > 1 ? prev.filter(p => p.id !== id) : prev);
 };
 
-// Save edits: update name, replace all properties for simplicity
+
 const saveTemplateEdits = async () => {
   if (!selectedTemplate) return;
 
@@ -264,56 +264,89 @@ const saveTemplateEdits = async () => {
     return;
   }
 
-  // update template name
-  const { error: updErr } = await supabase
-    .from('asset_templates')
-    .update({ name: cleanName })
-    .eq('id', selectedTemplate.id);
+  try {
+    // 1) Update template name
+    const { error: updTplErr } = await supabase
+      .from('asset_templates')
+      .update({ name: cleanName })
+      .eq('id', selectedTemplate.id);
+    if (updTplErr) throw updTplErr;
 
-  if (updErr) {
-    console.error('update template error:', updErr);
-    Alert.alert('Error', 'Failed to update template.');
-    return;
-  }
+    // 2) Load existing ids for this template
+    const { data: existingRows, error: exErr } = await supabase
+      .from('template_properties')
+      .select('id')
+      .eq('template_id', selectedTemplate.id);
+    if (exErr) throw exErr;
+    const existingIds = new Set((existingRows || []).map(r => String(r.id)));
 
-  // replace properties
-  const { error: delErr } = await supabase
-    .from('template_properties')
-    .delete()
-    .eq('template_id', selectedTemplate.id);
-
-  if (delErr) {
-    console.error('delete props error:', delErr);
-    Alert.alert('Error', 'Failed to save properties (delete).');
-    return;
-  }
-
-  const rows = detailProps
-    .map((p, idx) => ({
+    // 3) Normalize current editor state
+    const normalized = detailProps.map((p, idx) => ({
+      rawId: String(p.id), // keep as-is; could be "new-123" or a UUID
       template_id: selectedTemplate.id,
       property_name: (p.name || '').trim(),
       property_type: p.property_type || 'text',
       default_value: p.default_value ?? null,
-      display_order: idx
-    }))
-    .filter(r => r.property_name);
+      display_order: idx,
+    })).filter(r => r.property_name); // drop empties
 
-  if (rows.length) {
-    const { error: insErr } = await supabase
-      .from('template_properties')
-      .insert(rows);
-    if (insErr) {
-      console.error('insert props error:', insErr);
-      Alert.alert('Error', 'Failed to save properties (insert).');
-      return;
+    const updates = normalized.filter(r => !r.rawId.startsWith('new-')); // real rows (UUIDs)
+    const inserts = normalized.filter(r => r.rawId.startsWith('new-'));  // brand-new rows
+
+    // 4) Apply updates
+    if (updates.length) {
+      await Promise.all(
+        updates.map(u =>
+          supabase
+            .from('template_properties')
+            .update({
+              property_name: u.property_name,
+              property_type: u.property_type,
+              default_value: u.default_value,
+              display_order: u.display_order,
+            })
+            .eq('id', u.rawId)
+        )
+      );
     }
-  }
 
-  Alert.alert('Success', 'Template updated.');
-  setDetailsVisible(false);
-  setSelectedTemplate(null);
-  await loadTemplates();
+    // 5) Apply inserts (no id provided; DB should generate it)
+    if (inserts.length) {
+      const insertRows = inserts.map(i => ({
+        template_id: i.template_id,
+        property_name: i.property_name,
+        property_type: i.property_type,
+        default_value: i.default_value,
+        display_order: i.display_order,
+      }));
+      const { error: insErr } = await supabase
+        .from('template_properties')
+        .insert(insertRows);
+      if (insErr) throw insErr;
+    }
+
+    // 6) Archive removed ones (optional, requires is_active boolean column)
+    const keptDbIds = new Set(updates.map(u => u.rawId));
+    const toArchive = [...existingIds].filter(id => !keptDbIds.has(id));
+    if (toArchive.length) {
+      const { error: archErr } = await supabase
+        .from('template_properties')
+        .update({ is_active: false })
+        .in('id', toArchive);
+      if (archErr) throw archErr;
+    }
+
+    Alert.alert('Success', 'Template updated.');
+    setDetailsVisible(false);
+    setSelectedTemplate(null);
+    await loadTemplates();
+  } catch (e) {
+    console.error('saveTemplateEdits error:', e);
+    Alert.alert('Error', e.message || 'Failed to save template changes.');
+  }
 };
+
+
 
 // Delete template (cascades properties)
 const deleteTemplate = async () => {
@@ -414,10 +447,10 @@ const deleteTemplate = async () => {
                     placeholderTextColor="#999"
                   />
                   {nameTouched && isDuplicateName && (
-                    <Text style={styles.fieldError}>
-                      A template with this name already exists.
-                    </Text>
-                  )}
+                  <Text style={styles.fieldError}>
+                    A template with this name already exists.
+                  </Text>
+                )}
                 </View>
               
                 {/* Dynamic Properties */}
