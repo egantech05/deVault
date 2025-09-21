@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, Pressable } from "react-native";
-import { commonStyles, colors } from "./styles";
+import { commonStyles, colors } from "./Styles";
 import { StyleSheet } from "react-native";
 
 

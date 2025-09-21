@@ -2,7 +2,7 @@
 import React from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { commonStyles, colors } from "./styles";
+import { commonStyles, colors } from "./Styles";
 
 export const Header = ({ showMenuBtn, onMenuPress, title = "deVault" }) => {
   return (

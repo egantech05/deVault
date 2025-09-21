@@ -1,14 +1,89 @@
-import React,{useState} from "react";
-import { View, Text,StyleSheet, ScrollView, useWindowDimensions,TextInput,Pressable } from "react-native";
+import React,{useState, useEffect} from "react";
+import { View, Text,StyleSheet, ScrollView, useWindowDimensions,TextInput,Pressable,Modal, Platform, Alert } from "react-native";
 import { colors, commonStyles } from "../components/Styles";
 import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '../lib/supabase';
+import { Picker } from '@react-native-picker/picker';
+
+const createAssetTemplate = async ({ name, properties }) => {
+  const { data: tpl, error: tplError } = await supabase
+    .from("asset_templates")
+    .insert([{ name }])
+    .select("id")
+    .single();
+
+  if (tplError) return { error: tplError };
+
+  const rows = (properties || []).map((p, idx) => ({
+    template_id: tpl.id,
+    property_name: p.name?.trim(),
+    property_type: p.property_type || "text",
+    default_value: p.default_value ?? null,
+    display_order: idx,
+  })).filter(r => r.property_name);
+
+  if (rows.length) {
+    const { error: propError } = await supabase
+      .from("template_properties")
+      .insert(rows);
+    if (propError) return { error: propError };
+  }
+
+  return { data: { id: tpl.id } };
+};
+
+
 
 export default function AssetTemplatesScreen() {
+
+
   const {width} = useWindowDimensions();
   const [searchQuery, setSearchQuery] = useState('');
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [properties, setProperties] = useState([{ 
+    id: 1, 
+    name: '', 
+    property_type: 'text',
+    default_value: '',
+  }]);
+  const [templates, setTemplates] = useState([]);
+  const loadTemplates = async () => {
+    const { data: templates, error } = await supabase
+    .from("asset_templates")
+    .select("id, name")
+    .order("name", { ascending: true });
+  
+    if (error) {
+      console.error('loadTemplates error:', error);
+      return;
+    }
+  
+    const normalized = (templates || []).map(t => ({
+      ...t,
+      assetCount: 0,  
+    }));
+
+
+  
+    setTemplates(normalized);
+  };
+  
+  
+  // load on mount
+  useEffect(() => {
+    loadTemplates();
+  }, []);
+  
+
+  const PROPERTY_TYPES = [
+    { value: 'text', label: 'Text' },
+    { value: 'number', label: 'Number' },
+    { value: 'date', label: 'Date' },
+  ];
 
   //calculate card size to make it responsive
-
   const getCardSize=() =>{
     const containerPadding= 0;
     const availableWidth= width - containerPadding;
@@ -30,7 +105,96 @@ export default function AssetTemplatesScreen() {
   const cardSize= getCardSize();
   const addIconSize= 0.5*cardSize;
 
+  //adding template
+  const handleAddTemplate = async () => {
+    if (!templateName.trim()) {
+      Alert.alert('Error', 'Please enter a template name');
+      return;
+    }
   
+    setIsLoading(true);
+    const templateData = {
+      name: templateName.trim(),
+      properties: properties.filter(p => p.name.trim())
+    };
+  
+    const { error } = await createAssetTemplate(templateData);
+    
+    if (error) {
+      Alert.alert('Error', 'Failed to create template');
+      console.error('Error creating template:', error);
+    } else {
+      Alert.alert('Success', 'Template created successfully');
+      setTemplateName('');
+      setProperties([{ id: 1, name: '', property_type: 'text', default_value: '' }]);
+      setIsModalVisible(false);
+      loadTemplates();
+    }
+    setIsLoading(false);
+  };
+
+  const addProperty = () => {
+    const newId = Math.max(...properties.map(p => p.id)) + 1;
+    setProperties([...properties, { 
+      id: newId, 
+      name: '', 
+      property_type: 'text',
+      default_value: '',
+    }]);
+  };
+
+  const removeProperty = (id) => {
+    if (properties.length > 1) {
+      setProperties(properties.filter(p => p.id !== id));
+    }
+  };
+
+  const updateProperty = (id, field, value) => {
+    setProperties(properties.map(p => 
+      p.id === id ? { ...p, [field]: value } : p
+    ));
+  };
+
+  const renderPropertyTypeInput = (property) => {
+    if (property.property_type === 'date') {
+      // Web gets a native date input; native stays a text field users can type.
+      if (Platform.OS === 'web') {
+        return (
+          <input
+            type="date"
+            value={property.default_value || ''}
+            onChange={(e) => updateProperty(property.id, 'default_value', e.target.value)}
+            style={{ width: '100%', height: 40, borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10, background: '#f9f9f9' }}
+          />
+        );
+      }
+      return (
+        <TextInput
+          style={styles.input}
+          value={property.default_value}
+          onChangeText={(v) => updateProperty(property.id, 'default_value', v)}
+          placeholder="Default date (YYYY-MM-DD)"
+          placeholderTextColor="#999"
+        />
+      );
+    }
+  
+    // text / number
+    return (
+      <TextInput
+        style={styles.input}
+        value={property.default_value}
+        onChangeText={(v) => updateProperty(property.id, 'default_value', v)}
+        placeholder={`Default ${property.property_type} value`}
+        placeholderTextColor="#999"
+        keyboardType={property.property_type === 'number' ? 'numeric' : 'default'}
+      />
+    );
+  };
+  
+  const filteredTemplates = templates.filter(t =>
+    t.name?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     
@@ -39,31 +203,167 @@ export default function AssetTemplatesScreen() {
        <View style={[styles.searchBar]}>
               <Ionicons name="search" size={16} color={"white"} />
               <TextInput style={styles.searchInput} placeholder="Search..." placeholderTextColor={"white"} value={searchQuery} onChangeText={setSearchQuery} />
-            </View>
+        </View>
        <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
 
         
-          <View  style={styles.displayCardContainer}>
+        <View style={styles.displayCardContainer}>
 
-            <Pressable style={[styles.addCard, {width:cardSize, height:cardSize}]}>
-              <Ionicons name="add" size={addIconSize} color= {colors.brand}/>
-            </Pressable>
-            <Pressable style={[styles.displayCard, {width:cardSize, height:cardSize}]}>
-              <Text style={[styles.countText, {fontSize: cardSize * 0.10}]}>10</Text>
-              <View style={styles.nameTextWrap}>
-                <Text style={[styles.nameText, {fontSize: cardSize * 0.15}]}>Drone</Text>
-              </View>
-            </Pressable>
-            <Pressable style={[styles.displayCard, {width:cardSize, height:cardSize}]}></Pressable>
-            <Pressable style={[styles.displayCard, {width:cardSize, height:cardSize}]}></Pressable>
-            <Pressable style={[styles.displayCard, {width:cardSize, height:cardSize}]}></Pressable>
-            <Pressable style={[styles.displayCard, {width:cardSize, height:cardSize}]}></Pressable>
-            <Pressable style={[styles.displayCard, {width:cardSize, height:cardSize}]}></Pressable>
-            <Pressable style={[styles.displayCard, {width:cardSize, height:cardSize}]}></Pressable>
-            <Pressable style={[styles.displayCard, {width:cardSize, height:cardSize}]}></Pressable>
+        {/* Add NEW template card */}
+        <Pressable
+          style={[styles.addCard, { width: cardSize, height: cardSize }]}
+          onPress={() => setIsModalVisible(true)}
+        >
+          <Ionicons name="add" size={addIconSize} color={colors.brand} />
+        </Pressable>
 
-          </View>
+        {/* Existing templates */}
+        {filteredTemplates.map(t => (
+          <Pressable
+            key={t.id}
+            style={[styles.displayCard, { width: cardSize, height: cardSize }]}
+            onPress={() => {
+              // TODO: navigate to template details/edit
+              // navigation.navigate('TemplateDetail', { id: t.id })
+            }}
+          >
+            <Text style={[styles.countText, { fontSize: cardSize * 0.10 }]}>
+            {t.assetCount}
+            </Text>
+            <View style={styles.nameTextWrap}>
+              <Text
+                numberOfLines={2}
+                style={[styles.nameText, { fontSize: cardSize * 0.15 }]}
+              >
+                {t.name}
+              </Text>
+            </View>
+          </Pressable>
+        ))}
+
+        </View>
+
        </ScrollView>
+
+       <Modal
+        visible={isModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modal}>
+            {/* Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>New Asset Template</Text>
+              <Pressable onPress={() => setIsModalVisible(false)}>
+                <Ionicons name="close" size={24} color={colors.brand} />
+              </Pressable>
+            </View>
+            
+            {/* Content */}
+            <ScrollView 
+              style={styles.modalScrollView}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View style={styles.modalContent}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Template Name</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={templateName}
+                    onChangeText={setTemplateName}
+                    placeholder="Enter template name"
+                    placeholderTextColor="#999"
+                  />
+                </View>
+              
+                {/* Dynamic Properties */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Properties</Text>
+                  {properties.map((property, index) => (
+                    <View key={property.id} style={styles.propertyContainer}>
+                      {/* Property Name and Type Row */}
+                      <View style={styles.propertyRow}>
+                        <View style={styles.propertyNameContainer}>
+                          <TextInput
+                            style={[styles.input, styles.propertyNameInput]}
+                            value={property.name}
+                            onChangeText={(value) => updateProperty(property.id, 'name', value)}
+                            placeholder="Property name"
+                            placeholderTextColor="#999"
+                          />
+                        </View>
+                        
+                        <View style={styles.propertyTypeContainer}>
+                          <View style={styles.pickerContainer}>
+                            {Platform.OS !== 'web' && <Text style={styles.pickerLabel}>Type:</Text>}
+                            <View style={styles.pickerWrapper}>
+                              {Platform.OS === 'web' ? (
+                                <select
+                                  value={property.property_type ?? 'text'}
+                                  onChange={(e) => updateProperty(property.id, 'property_type', e.target.value)}
+                                  style={{ width: '100%', height: 40, border: 'none', background: 'transparent' }}
+                                  aria-label="Type"
+                                >
+                                  {PROPERTY_TYPES.map((t) => (
+                                    <option key={t.value} value={t.value}>{t.label}</option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <Picker
+                                  selectedValue={property.property_type ?? 'text'}
+                                  onValueChange={(value) => updateProperty(property.id, 'property_type', value)}
+                                  mode="dropdown"
+                                  style={styles.picker}
+                                >
+                                  {PROPERTY_TYPES.map((t) => (
+                                    <Picker.Item key={t.value} label={t.label} value={t.value} />
+                                  ))}
+                                </Picker>
+                              )}
+                            </View>
+                          </View>
+                        </View>
+
+
+                        {properties.length > 1 && (
+                          <Pressable
+                            style={styles.removeButton}
+                            onPress={() => removeProperty(property.id)}
+                          >
+                            <Ionicons name="trash-outline" size={20} color="#ff4444" />
+                          </Pressable>
+                        )}
+                      </View>
+                    </View>
+                  ))}
+              
+                  <Pressable style={styles.addPropertyButton} onPress={addProperty}>
+                    <Ionicons name="add" size={20} color={colors.brand} />
+                    <Text style={styles.addPropertyText}>Add Property</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </ScrollView>
+            <View style={styles.modalFooter}>
+              <View style={styles.buttonContainer}>
+                    <Pressable style={styles.cancelButton} onPress={() => setIsModalVisible(false)}>
+                      <Text style={styles.cancelButtonText}>Cancel</Text>
+                    </Pressable>
+                    <Pressable style={styles.saveButton} onPress={handleAddTemplate}>
+                      <Text style={styles.saveButtonText}>Save</Text>
+                    </Pressable>
+                </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+
+
+
       </View>
    
   );
@@ -127,6 +427,275 @@ export const styles= StyleSheet.create({
   nameTextWrap:{
       flex:1,
       justifyContent:'flex-end',
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modal: {
+    width: '90%',
+    backgroundColor: 'white',
+    borderRadius: 16,
+    height: '80%',
+    flexDirection: 'column',
+    overflow: 'visible', 
+  },
+  modalHeader: {
+    backgroundColor: colors.primary,
+    borderTopLeftRadius:13,
+    borderTopRightRadius:13,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    flexShrink: 0,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  modalScrollView: {
+    flex: 1, 
+    height: '80%', 
+    overflow: 'visible',
+  },
+  modalContent: {
+    padding: 20,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  label: {
+    fontSize: 16,
+    color: colors.primary,
+    marginBottom: 8,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: '#f9f9f9',
+  },
+  modalFooter: {
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    flexShrink: 0, // Prevent footer from shrinking
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+  },
+  cancelButton: {
+    flex: 1,
+    padding: 12,
+    marginRight: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.brand,
+  },
+  cancelButtonText: {
+    textAlign: 'center',
+    color: colors.normal,
+    fontWeight: 'bold',
+  },
+  saveButton: {
+    flex: 1,
+    padding: 12,
+    marginLeft: 8,
+    borderRadius: 8,
+    backgroundColor: colors.primary,
+  },
+  saveButtonText: {
+    textAlign: 'center',
+    color: 'white',
+    fontWeight: 'bold',
+  },
+
+  propertyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  propertyInputs: {
+    flex: 1,
+    marginRight: 8,
+  },
+  propertyNameInput: {
+    flex: 1,
+  },
+
+  removeButton: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: '#ffe6e6',
+  },
+  addPropertyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    borderWidth: 2,
+    borderColor: colors.brand,
+    borderStyle: 'dashed',
+    borderRadius: 8,
+    backgroundColor: '#f9f9f9',
+  },
+  addPropertyText: {
+    marginLeft: 8,
+    color: colors.brand,
+    fontWeight: 'bold',
+  },
+
+  propertyContainer: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  
+  propertyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  
+  propertyNameContainer: {
+    flex: 2,
+    marginRight: 8,
+  },
+  
+  propertyNameInput: {
+    flex: 1,
+  },
+  
+  propertyTypeContainer: {
+    flex: 1,
+    marginRight: 8,
+    zIndex: 1,    
+    position: 'relative',   
+    elevation: 4, 
+  },
+  
+  pickerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  
+  pickerLabel: {
+    fontSize: 12,
+    color: colors.primary,
+    marginRight: 4,
+    fontWeight: 'bold',
+  },
+  
+  pickerWrapper: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 6,
+    backgroundColor: '#f9f9f9',
+    overflow: 'visible', 
+  },
+  
+  picker: {
+    height: 40,
+    width: '100%',
+  },
+  
+  defaultValueSection: {
+    marginTop: 8,
+  },
+  
+  defaultValueLabel: {
+    fontSize: 12,
+    color: colors.primary,
+    marginBottom: 4,
+    fontWeight: 'bold',
+  },
+  
+  booleanContainer: {
+    flexDirection: 'row',
+  },
+  
+  booleanButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: colors.brand,
+    borderRadius: 6,
+    marginRight: 8,
+  },
+  
+  booleanButtonSelected: {
+    backgroundColor: colors.brand,
+  },
+  
+  booleanButtonText: {
+    color: colors.brand,
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  
+  booleanButtonTextSelected: {
+    color: 'white',
+  },
+  
+  selectContainer: {
+    marginTop: 4,
+  },
+  
+  selectLabel: {
+    fontSize: 12,
+    color: colors.primary,
+    marginBottom: 4,
+    fontWeight: 'bold',
+  },
+  
+  selectOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  
+  selectOptionInput: {
+    flex: 1,
+    marginRight: 8,
+    fontSize: 12,
+  },
+  
+  removeOptionButton: {
+    padding: 4,
+  },
+  
+  addOptionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    borderWidth: 1,
+    borderColor: colors.brand,
+    borderStyle: 'dashed',
+    borderRadius: 4,
+    backgroundColor: '#f9f9f9',
+    marginTop: 4,
+  },
+  
+  addOptionText: {
+    marginLeft: 4,
+    color: colors.brand,
+    fontSize: 12,
+    fontWeight: 'bold',
   },
 
 

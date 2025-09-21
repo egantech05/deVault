@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { View, Pressable, StyleSheet, useWindowDimensions } from "react-native";
 import Sidebar from "./Sidebar";
 import { Header } from "./Header";
-import { colors, commonStyles } from "./styles";
+import { colors, commonStyles } from "./Styles";
 import { Footer } from "./Footer";
 import { SafeAreaView } from 'react-native-safe-area-context';
 

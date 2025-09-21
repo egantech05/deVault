@@ -13,7 +13,7 @@ export default function Sidebar({ isLarge, onClose }) {
     return (
       <View style={styles.sidebarFixed}>
         <Pressable onPress={() => navigation.navigate("Assets")} style={styles.navigationButton}>
-          <Ionicons name="albums-outline" size={24} color={"white"} />
+          <Ionicons name="albums-outline" size={24} color={"white"} style={styles.iconStyle}/>
           <Text style={styles.navigationText}>Assets</Text>
         </Pressable>
         
@@ -80,9 +80,6 @@ const styles = StyleSheet.create({
     width: SIDEBAR_WIDTH,
     backgroundColor: colors.secondary,
     zIndex: 1001,
-    shadowColor: "#000",
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
     elevation: 6,
     
   },
@@ -96,7 +93,13 @@ const styles = StyleSheet.create({
 
   navigationText:{
     color:"white",
+    fontSize:12,
     flex:1,
     padding: 16,
+  },
+
+  iconStyle:{
+    color: "white",
+    size:24,
   },
 });
