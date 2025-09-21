@@ -41,6 +41,7 @@ export default function AssetTemplatesScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [templateName, setTemplateName] = useState('');
+  const [nameTouched, setNameTouched] = useState(false); 
   const [isLoading, setIsLoading] = useState(false);
   const [properties, setProperties] = useState([{ 
     id: 1, 
@@ -49,6 +50,16 @@ export default function AssetTemplatesScreen() {
     default_value: '',
   }]);
   const [templates, setTemplates] = useState([]);
+  const [detailsVisible, setDetailsVisible] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [detailName, setDetailName] = useState('');
+  const [detailProps, setDetailProps] = useState([]);
+  // === Duplicate name guards (Add Template modal) ===
+  const normalizedNewName = templateName.trim().toLowerCase();
+  const isDuplicateName = !!normalizedNewName &&
+  templates.some(t => (t.name || '').toLowerCase() === normalizedNewName);
+
+const canSaveNew = !!templateName.trim() && !isDuplicateName && !isLoading;
   const loadTemplates = async () => {
     const { data: templates, error } = await supabase
     .from("asset_templates")
@@ -178,6 +189,8 @@ export default function AssetTemplatesScreen() {
         />
       );
     }
+
+
   
     // text / number
     return (
@@ -195,6 +208,134 @@ export default function AssetTemplatesScreen() {
   const filteredTemplates = templates.filter(t =>
     t.name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Open details for a template card
+const openDetails = async (tpl) => {
+  setSelectedTemplate(tpl);
+  setDetailName(tpl.name);
+
+  const { data, error } = await supabase
+    .from('template_properties')
+    .select('id, property_name, property_type, default_value, display_order')
+    .eq('template_id', tpl.id)
+    .order('display_order', { ascending: true });
+
+  if (error) {
+    console.error('fetch props error:', error);
+    setDetailProps([]);
+  } else {
+    const normalized = (data || []).map(r => ({
+      id: r.id,                         // keep DB id for updates
+      name: r.property_name || '',
+      property_type: r.property_type || 'text',
+      default_value: r.default_value ?? '',
+    }));
+    setDetailProps(normalized.length ? normalized : [{
+      id: `new-${Date.now()}`, name: '', property_type: 'text', default_value: ''
+    }]);
+  }
+
+  setDetailsVisible(true);
+};
+
+// Local editing helpers
+const updateDetailProperty = (id, field, value) => {
+  setDetailProps(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p));
+};
+
+const addDetailProperty = () => {
+  setDetailProps(prev => ([
+    ...prev,
+    { id: `new-${Date.now()}`, name: '', property_type: 'text', default_value: '' }
+  ]));
+};
+
+const removeDetailProperty = (id) => {
+  setDetailProps(prev => prev.length > 1 ? prev.filter(p => p.id !== id) : prev);
+};
+
+// Save edits: update name, replace all properties for simplicity
+const saveTemplateEdits = async () => {
+  if (!selectedTemplate) return;
+
+  const cleanName = detailName.trim();
+  if (!cleanName) {
+    Alert.alert('Validation', 'Template name cannot be empty.');
+    return;
+  }
+
+  // update template name
+  const { error: updErr } = await supabase
+    .from('asset_templates')
+    .update({ name: cleanName })
+    .eq('id', selectedTemplate.id);
+
+  if (updErr) {
+    console.error('update template error:', updErr);
+    Alert.alert('Error', 'Failed to update template.');
+    return;
+  }
+
+  // replace properties
+  const { error: delErr } = await supabase
+    .from('template_properties')
+    .delete()
+    .eq('template_id', selectedTemplate.id);
+
+  if (delErr) {
+    console.error('delete props error:', delErr);
+    Alert.alert('Error', 'Failed to save properties (delete).');
+    return;
+  }
+
+  const rows = detailProps
+    .map((p, idx) => ({
+      template_id: selectedTemplate.id,
+      property_name: (p.name || '').trim(),
+      property_type: p.property_type || 'text',
+      default_value: p.default_value ?? null,
+      display_order: idx
+    }))
+    .filter(r => r.property_name);
+
+  if (rows.length) {
+    const { error: insErr } = await supabase
+      .from('template_properties')
+      .insert(rows);
+    if (insErr) {
+      console.error('insert props error:', insErr);
+      Alert.alert('Error', 'Failed to save properties (insert).');
+      return;
+    }
+  }
+
+  Alert.alert('Success', 'Template updated.');
+  setDetailsVisible(false);
+  setSelectedTemplate(null);
+  await loadTemplates();
+};
+
+// Delete template (cascades properties)
+const deleteTemplate = async () => {
+  if (!selectedTemplate) return;
+
+  const { error } = await supabase
+    .from('asset_templates')
+    .delete()
+    .eq('id', selectedTemplate.id);
+
+  if (error) {
+    console.error('delete template error:', error);
+    Alert.alert('Error', 'Failed to delete template.');
+    return;
+  }
+
+  Alert.alert('Deleted', 'Template removed.');
+  setDetailsVisible(false);
+  setSelectedTemplate(null);
+  await loadTemplates();
+};
+
 
   return (
     
@@ -217,24 +358,18 @@ export default function AssetTemplatesScreen() {
           <Ionicons name="add" size={addIconSize} color={colors.brand} />
         </Pressable>
 
-        {/* Existing templates */}
+        {/* list of templates */}
         {filteredTemplates.map(t => (
           <Pressable
             key={t.id}
             style={[styles.displayCard, { width: cardSize, height: cardSize }]}
-            onPress={() => {
-              // TODO: navigate to template details/edit
-              // navigation.navigate('TemplateDetail', { id: t.id })
-            }}
+            onPress={() => openDetails(t)}
           >
             <Text style={[styles.countText, { fontSize: cardSize * 0.10 }]}>
-            {t.assetCount}
+              {t.assetCount}
             </Text>
             <View style={styles.nameTextWrap}>
-              <Text
-                numberOfLines={2}
-                style={[styles.nameText, { fontSize: cardSize * 0.15 }]}
-              >
+              <Text numberOfLines={2} style={[styles.nameText, { fontSize: cardSize * 0.15 }]}>
                 {t.name}
               </Text>
             </View>
@@ -273,10 +408,16 @@ export default function AssetTemplatesScreen() {
                   <TextInput
                     style={styles.input}
                     value={templateName}
-                    onChangeText={setTemplateName}
+                    onChangeText={(v) => { setTemplateName(v); setNameTouched(true); }}
+                    onBlur={() => setNameTouched(true)}
                     placeholder="Enter template name"
                     placeholderTextColor="#999"
                   />
+                  {nameTouched && isDuplicateName && (
+                    <Text style={styles.fieldError}>
+                      A template with this name already exists.
+                    </Text>
+                  )}
                 </View>
               
                 {/* Dynamic Properties */}
@@ -361,7 +502,203 @@ export default function AssetTemplatesScreen() {
         </View>
       </Modal>
 
+    {/* view template */}
+      <Modal
+        visible={detailsVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => {
+          setDetailsVisible(false);
+          setSelectedTemplate(null);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modal, { height: '70%' }]}>
+            {/* Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Template Details</Text>
+              <Pressable
+                onPress={() => {
+                  setDetailsVisible(false);
+                  setSelectedTemplate(null);
+                }}
+              >
+                <Ionicons name="close" size={24} color={colors.brand} />
+              </Pressable>
+            </View>
 
+            {/* Content */}
+            <ScrollView
+              style={styles.modalScrollView}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View style={styles.modalContent}>
+                {/* Template name */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Template Name</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={detailName}
+                    onChangeText={setDetailName}
+                    placeholder="Enter template name"
+                    placeholderTextColor="#999"
+                  />
+                </View>
+
+                {/* Properties */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Properties</Text>
+
+                  {detailProps.map((p) => (
+                    <View key={p.id} style={styles.propertyContainer}>
+                      <View style={styles.propertyRow}>
+                        {/* Name */}
+                        <View style={styles.propertyNameContainer}>
+                          <TextInput
+                            style={[styles.input, styles.propertyNameInput]}
+                            value={p.name}
+                            onChangeText={(v) => updateDetailProperty(p.id, 'name', v)}
+                            placeholder="Property name"
+                            placeholderTextColor="#999"
+                          />
+                        </View>
+
+                        {/* Type */}
+                        <View style={styles.propertyTypeContainer}>
+                          <View style={styles.pickerContainer}>
+                            {Platform.OS !== 'web' && (
+                              <Text style={styles.pickerLabel}>Type:</Text>
+                            )}
+                            <View style={styles.pickerWrapper}>
+                              {Platform.OS === 'web' ? (
+                                <select
+                                  value={p.property_type ?? 'text'}
+                                  onChange={(e) =>
+                                    updateDetailProperty(p.id, 'property_type', e.target.value)
+                                  }
+                                  style={{
+                                    width: '100%',
+                                    height: 40,
+                                    border: 'none',
+                                    background: 'transparent',
+                                  }}
+                                  aria-label="Type"
+                                >
+                                  <option value="text">Text</option>
+                                  <option value="number">Number</option>
+                                  <option value="date">Date</option>
+                                </select>
+                              ) : (
+                                <Picker
+                                  selectedValue={p.property_type ?? 'text'}
+                                  onValueChange={(value) =>
+                                    updateDetailProperty(p.id, 'property_type', value)
+                                  }
+                                  mode="dropdown"
+                                  style={styles.picker}
+                                >
+                                  <Picker.Item label="Text" value="text" />
+                                  <Picker.Item label="Number" value="number" />
+                                  <Picker.Item label="Date" value="date" />
+                                </Picker>
+                              )}
+                            </View>
+                          </View>
+                        </View>
+
+                        {/* Remove property */}
+                        {detailProps.length > 1 && (
+                          <Pressable
+                            style={styles.removeButton}
+                            onPress={() => removeDetailProperty(p.id)}
+                          >
+                            <Ionicons name="trash-outline" size={20} color="#ff4444" />
+                          </Pressable>
+                        )}
+                      </View>
+
+{/* Default value (only for number/date; hide for text) */}
+{p.property_type === 'date' ? (
+  Platform.OS === 'web' ? (
+    <input
+      type="date"
+      value={p.default_value || ''}
+      onChange={(e) =>
+        updateDetailProperty(p.id, 'default_value', e.target.value)
+      }
+      style={{
+        width: '100%',
+        height: 40,
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 8,
+        padding: 10,
+        background: '#f9f9f9',
+        marginTop: 8,
+      }}
+    />
+  ) : (
+    <TextInput
+      style={[styles.input, { marginTop: 8 }]}
+      value={p.default_value}
+      onChangeText={(v) =>
+        updateDetailProperty(p.id, 'default_value', v)
+      }
+      placeholder="Default date (YYYY-MM-DD)"
+      placeholderTextColor="#999"
+    />
+  )
+) : p.property_type === 'number' ? (
+  <TextInput
+    style={[styles.input, { marginTop: 8 }]}
+    value={p.default_value}
+    onChangeText={(v) =>
+      updateDetailProperty(p.id, 'default_value', v)
+    }
+    placeholder="Default number value"
+    placeholderTextColor="#999"
+    keyboardType="numeric"
+  />
+) : null}
+
+                    </View>
+                  ))}
+
+                  <Pressable
+                    style={[styles.addPropertyButton, { marginTop: 8 }]}
+                    onPress={addDetailProperty}
+                  >
+                    <Ionicons name="add" size={20} color={colors.brand} />
+                    <Text style={styles.addPropertyText}>Add Property</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </ScrollView>
+
+            {/* Footer */}
+            <View style={styles.modalFooter}>
+              <View style={styles.buttonContainer}>
+                <Pressable
+                  style={[styles.cancelButton, { borderColor: '#ff4444' }]}
+                  onPress={deleteTemplate}
+                >
+                  <Text style={[styles.cancelButtonText, { color: '#ff4444' }]}>
+                    Delete Template
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  style={[styles.saveButton, { marginLeft: 8 }]}
+                  onPress={saveTemplateEdits}
+                >
+                  <Text style={styles.saveButtonText}>Save Changes</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>             
 
 
       </View>
