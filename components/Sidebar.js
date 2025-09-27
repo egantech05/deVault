@@ -21,7 +21,7 @@ export default function Sidebar({ isLarge, onClose }) {
           <Ionicons name="document-outline" size={24} color={"white"} />
           <Text style={styles.navigationText}>Asset Templates</Text>
         </Pressable>
-        <Pressable onPress={() => navigation.navigate("AssetTemplates")} style={styles.navigationButton}>
+        <Pressable onPress={() => navigation.navigate("LogTemplates")} style={styles.navigationButton}>
           <Ionicons name="document-text-outline" size={24} color={"white"} />
           <Text style={styles.navigationText}>Log Templates</Text>
         </Pressable>
@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
   sidebarFixed: {
     width: SIDEBAR_WIDTH,
     height: "100%",
-    backgroundColor: "colors.secondary",
+    backgroundColor: colors.secondary,
     
   },
 
