@@ -13,6 +13,9 @@ import AddAssetModal from "./AssetsScreen/AddAssetModal";
 import AssetDetailsModal from "./AssetsScreen/AssetDetailsModal";
 import styles from "./AssetsScreen/styles";
 import { colors, commonStyles } from "../components/Styles";
+import AutoShrinkText from "../components/AutoShrinkText";
+import { getCardSize } from "../utils/cardLayout";
+
 
 export default function AssetsScreen() {
   const { width } = useWindowDimensions();
@@ -30,20 +33,7 @@ export default function AssetsScreen() {
     createAsset,
   } = useAssets();
 
-  // --- Layout helpers ---
-  const getCardSize = () => {
-    const availableWidth = width;
-    let cardsPerRow = 1;
-    if (availableWidth >= 100) cardsPerRow = 2;
-    if (availableWidth >= 200) cardsPerRow = 3;
-    if (availableWidth >= 600) cardsPerRow = 4;
-    if (availableWidth >= 800) cardsPerRow = 5;
-    if (availableWidth >= 1000) cardsPerRow = 8;
-    const cardSize = width / cardsPerRow + 16;
-    return Math.max(cardSize, 60);
-  };
-
-  const cardSize = getCardSize();
+  const cardSize = getCardSize(width);
   const addIconSize = 0.5 * cardSize;
 
   const filteredAssets = assets.filter((a) => {
@@ -97,16 +87,22 @@ export default function AssetsScreen() {
               style={[styles.displayCard, { width: cardSize, height: cardSize }]}
               onPress={() => openAssetDetails(item)}
             >
-              <Text style={[styles.templateText, { fontSize: cardSize * 0.1 }]}>
+              <AutoShrinkText
+                style={[styles.templateText, { fontSize: cardSize * 0.1 }]}
+                initialSize={cardSize * 0.1}
+                maxLines={2}
+              >
                 {item.templateName}
-              </Text>
+              </AutoShrinkText>
+
               <View style={styles.nameTextWrap}>
-                <Text
-                  numberOfLines={2}
+                <AutoShrinkText
                   style={[styles.nameText, { fontSize: cardSize * 0.15 }]}
+                  initialSize={cardSize * 0.15}
+                  maxLines={2}
                 >
                   {item.firstProp}
-                </Text>
+                </AutoShrinkText>
               </View>
             </Pressable>
           ))}

@@ -1,262 +1,144 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, useWindowDimensions, TextInput, Pressable, Modal, Platform, Alert } from "react-native";
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import {
+  View, Text, ScrollView, useWindowDimensions, TextInput,
+  Pressable, Modal, Alert, StyleSheet
+} from "react-native";
 import { colors, commonStyles } from "../components/Styles";
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '../lib/supabase';
-import { Picker } from '@react-native-picker/picker';
+import AutoShrinkText from '../components/AutoShrinkText';
+import PropertyRow from '../components/templates/PropertyRow';
+import { getCardSize } from '../utils/cardLayout';
+import {
+  listTemplates, createTemplate, getTemplateFields, updateTemplateName,
+  upsertTemplateFields, archiveFields, deleteTemplate as deleteTemplateApi
+} from '../services/templatesApi';
 
-const createLogTemplate = async ({ name, properties }) => {
-  const { data: tpl, error: tplError } = await supabase
-    .from("log_templates")
-    .insert([{ name }])
-    .select("id")
-    .single();
-
-  if (tplError) return { error: tplError };
-
-  const rows = (properties || []).map((p, idx) => ({
-    template_id: tpl.id,
-    property_name: p.name?.trim(),
-    property_type: p.property_type || "text",
-    default_value: p.default_value ?? null,
-    display_order: idx,
-  })).filter(r => r.property_name);
-
-  if (rows.length) {
-    const { error: propError } = await supabase
-      .from("log_template_fields")
-      .insert(rows);
-    if (propError) return { error: propError };
-  }
-
-  return { data: { id: tpl.id } };
-};
-
-
+const KIND = 'log';
 
 export default function LogTemplatesScreen() {
-
-
   const { width } = useWindowDimensions();
+
+  // UI state
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [nameTouched, setNameTouched] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [properties, setProperties] = useState([{
-    id: 1,
-    name: '',
-    property_type: 'text',
-    default_value: '',
-  }]);
+
+  // Create modal fields
+  const [properties, setProperties] = useState([
+    { id: 1, name: '', property_type: 'text', default_value: '' }
+  ]);
+
+  // Templates list + details editor
   const [templates, setTemplates] = useState([]);
   const [detailsVisible, setDetailsVisible] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [detailName, setDetailName] = useState('');
   const [detailProps, setDetailProps] = useState([]);
-  // === Duplicate name guards (Add Template modal) ===
+
+  // Duplicate name guard
   const normalizedNewName = templateName.trim().toLowerCase();
   const isDuplicateName = !!normalizedNewName &&
     templates.some(t => (t.name || '').toLowerCase() === normalizedNewName);
-
   const canSaveNew = !!templateName.trim() && !isDuplicateName && !isLoading;
+
+  // Load templates
   const loadTemplates = async () => {
-    const { data, error } = await supabase
-      .from('log_templates')
-      // if FK exists: logs.template_id -> log_templates.id,
-      // this nested aggregate works:
-      .select('id, name, log_entries(count)')
-      .order('name', { ascending: true });
-
-    if (error) {
-      console.error('loadTemplates error:', error);
-      return;
+    try {
+      const rows = await listTemplates(KIND); // [{ id, name, logCount }]
+      setTemplates(rows);
+    } catch (e) {
+      console.error('loadTemplates error:', e);
     }
-
-    const normalized = (data || []).map(t => ({
-      id: t.id,
-      name: t.name,
-      logCount: t.log_entries?.[0]?.count ?? 0, // <- grab the count
-    }));
-
-    setTemplates(normalized);
   };
+  useEffect(() => { loadTemplates(); }, []);
 
-
-
-  // load on mount
-  useEffect(() => {
-    loadTemplates();
-  }, []);
-
-
-  const PROPERTY_TYPES = [
-    { value: 'text', label: 'Text' },
-    { value: 'number', label: 'Number' },
-    { value: 'date', label: 'Date' },
-  ];
-
-  //calculate card size to make it responsive
-  const getCardSize = () => {
-    const containerPadding = 0;
-    const availableWidth = width - containerPadding;
-    const margin = 8;
-
-    //calculate how many cards can fit
-    let cardsPerRow = 1;
-    if (availableWidth >= 100) cardsPerRow = 2;
-    if (availableWidth >= 200) cardsPerRow = 3;
-    if (availableWidth >= 600) cardsPerRow = 4;
-    if (availableWidth >= 800) cardsPerRow = 5;
-    if (availableWidth >= 1000) cardsPerRow = 8;
-
-    const cardSize = width / cardsPerRow + 16;
-    return Math.max(cardSize, 60);
-
-  };
-
-  const cardSize = getCardSize();
+  // Layout
+  const cardSize = getCardSize(width);
   const addIconSize = 0.5 * cardSize;
 
-  //adding template
+  // Create-modal helpers
+  const nextIdRef = useRef(2);
+  const addProperty = () => {
+    setProperties(prev => [
+      ...prev,
+      { id: nextIdRef.current++, name: '', property_type: 'text', default_value: '' }
+    ]);
+  };
+  const removeProperty = (id) => {
+    if (properties.length > 1) {
+      setProperties(prev => prev.filter(p => p.id !== id));
+    }
+  };
+  const updateProperty = (id, field, value) => {
+    setProperties(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p));
+  };
+
+  // Search
+  const filteredTemplates = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return templates;
+    return templates.filter(t => (t.name || '').toLowerCase().includes(q));
+  }, [templates, searchQuery]);
+
+  // Create template
   const handleAddTemplate = async () => {
     if (!templateName.trim()) {
       Alert.alert('Error', 'Please enter a template name');
       return;
     }
-
     setIsLoading(true);
-    const templateData = {
-      name: templateName.trim(),
-      properties: properties.filter(p => p.name.trim())
-    };
-
-    const { error } = await createLogTemplate(templateData);
-
-    if (error) {
-      Alert.alert('Error', 'Failed to create template');
-      console.error('Error creating template:', error);
-    } else {
+    try {
+      await createTemplate(KIND, {
+        name: templateName.trim(),
+        properties: properties.filter(p => p.name.trim()),
+      });
       Alert.alert('Success', 'Template created successfully');
       setTemplateName('');
       setProperties([{ id: 1, name: '', property_type: 'text', default_value: '' }]);
       setIsModalVisible(false);
       loadTemplates();
+    } catch (e) {
+      Alert.alert('Error', 'Failed to create template');
+      console.error('Error creating template:', e);
     }
     setIsLoading(false);
   };
 
-  const addProperty = () => {
-    const newId = Math.max(...properties.map(p => p.id)) + 1;
-    setProperties([...properties, {
-      id: newId,
-      name: '',
-      property_type: 'text',
-      default_value: '',
-    }]);
-  };
-
-  const removeProperty = (id) => {
-    if (properties.length > 1) {
-      setProperties(properties.filter(p => p.id !== id));
-    }
-  };
-
-  const updateProperty = (id, field, value) => {
-    setProperties(properties.map(p =>
-      p.id === id ? { ...p, [field]: value } : p
-    ));
-  };
-
-  const renderPropertyTypeInput = (property) => {
-    if (property.property_type === 'date') {
-      // Web gets a native date input; native stays a text field users can type.
-      if (Platform.OS === 'web') {
-        return (
-          <input
-            type="date"
-            value={property.default_value || ''}
-            onChange={(e) => updateProperty(property.id, 'default_value', e.target.value)}
-            style={{ width: '100%', height: 40, borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10, background: '#f9f9f9' }}
-          />
-        );
-      }
-      return (
-        <TextInput
-          style={styles.input}
-          value={property.default_value}
-          onChangeText={(v) => updateProperty(property.id, 'default_value', v)}
-          placeholder="Default date (YYYY-MM-DD)"
-          placeholderTextColor="#999"
-        />
-      );
-    }
-
-
-
-    // text / number
-    return (
-      <TextInput
-        style={styles.input}
-        value={property.default_value}
-        onChangeText={(v) => updateProperty(property.id, 'default_value', v)}
-        placeholder={`Default ${property.property_type} description`}
-        placeholderTextColor="#999"
-        keyboardType={property.property_type === 'number' ? 'numeric' : 'default'}
-      />
-    );
-  };
-
-  const filteredTemplates = templates.filter(t =>
-    t.name?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  // Open details for a template card
+  // Open details
   const openDetails = async (tpl) => {
     setSelectedTemplate(tpl);
     setDetailName(tpl.name);
-
-    const { data, error } = await supabase
-      .from('log_template_fields')
-      .select('id, property_name, property_type, default_value, display_order')
-      .eq('template_id', tpl.id)
-      .order('display_order', { ascending: true });
-
-    if (error) {
-      console.error('fetch props error:', error);
-      setDetailProps([]);
-    } else {
-      const normalized = (data || []).map(r => ({
-        id: r.id,                         // keep DB id for updates
-        name: r.property_name || '',
-        property_type: r.property_type || 'text',
-        default_value: r.default_value ?? '',
+    try {
+      const fields = await getTemplateFields(KIND, tpl.id);
+      const normalized = fields.map(r => ({
+        id: r.id, name: r.name, property_type: r.property_type, default_value: r.default_value,
       }));
       setDetailProps(normalized.length ? normalized : [{
         id: `new-${Date.now()}`, name: '', property_type: 'text', default_value: ''
       }]);
+    } catch (e) {
+      console.error('fetch props error:', e);
+      setDetailProps([]);
     }
-
     setDetailsVisible(true);
   };
 
-  // Local editing helpers
+  // Details editor helpers
   const updateDetailProperty = (id, field, value) => {
     setDetailProps(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p));
   };
-
   const addDetailProperty = () => {
-    setDetailProps(prev => ([
-      ...prev,
-      { id: `new-${Date.now()}`, name: '', property_type: 'text', default_value: '' }
-    ]));
+    setDetailProps(prev => ([...prev, {
+      id: `new-${Date.now()}`, name: '', property_type: 'text', default_value: ''
+    }]));
   };
-
   const removeDetailProperty = (id) => {
     setDetailProps(prev => prev.length > 1 ? prev.filter(p => p.id !== id) : prev);
   };
 
-
+  // Save edits
   const saveTemplateEdits = async () => {
     if (!selectedTemplate) return;
 
@@ -267,76 +149,28 @@ export default function LogTemplatesScreen() {
     }
 
     try {
-      // 1) Update template name
-      const { error: updTplErr } = await supabase
-        .from('log_templates')
-        .update({ name: cleanName })
-        .eq('id', selectedTemplate.id);
-      if (updTplErr) throw updTplErr;
+      await updateTemplateName(KIND, selectedTemplate.id, cleanName);
 
-      // 2) Load existing ids for this template
-      const { data: existingRows, error: exErr } = await supabase
-        .from('log_template_fields')
-        .select('id')
-        .eq('template_id', selectedTemplate.id);
-      if (exErr) throw exErr;
-      const existingIds = new Set((existingRows || []).map(r => String(r.id)));
+      const existing = await getTemplateFields(KIND, selectedTemplate.id);
+      const existingIds = new Set(existing.map(r => String(r.id)));
 
-      // 3) Normalize current editor state
       const normalized = detailProps.map((p, idx) => ({
-        rawId: String(p.id), // keep as-is; could be "new-123" or a UUID
+        rawId: String(p.id),
         template_id: selectedTemplate.id,
         property_name: (p.name || '').trim(),
         property_type: p.property_type || 'text',
         default_value: p.default_value ?? null,
         display_order: idx,
-      })).filter(r => r.property_name); // drop empties
+      })).filter(r => r.property_name);
 
-      const updates = normalized.filter(r => !r.rawId.startsWith('new-')); // real rows (UUIDs)
-      const inserts = normalized.filter(r => r.rawId.startsWith('new-'));  // brand-new rows
+      const updates = normalized.filter(r => !r.rawId.startsWith('new-'));
+      const inserts = normalized.filter(r => r.rawId.startsWith('new-'));
 
-      // 4) Apply updates
-      if (updates.length) {
-        await Promise.all(
-          updates.map(u =>
-            supabase
-              .from('log_template_fields')
-              .update({
-                property_name: u.property_name,
-                property_type: u.property_type,
-                default_value: u.default_value,
-                display_order: u.display_order,
-              })
-              .eq('id', u.rawId)
-          )
-        );
-      }
+      await upsertTemplateFields(KIND, { templateId: selectedTemplate.id, updates, inserts });
 
-      // 5) Apply inserts (no id provided; DB should generate it)
-      if (inserts.length) {
-        const insertRows = inserts.map(i => ({
-          template_id: i.template_id,
-          property_name: i.property_name,
-          property_type: i.property_type,
-          default_value: i.default_value,
-          display_order: i.display_order,
-        }));
-        const { error: insErr } = await supabase
-          .from('log_template_fields')
-          .insert(insertRows);
-        if (insErr) throw insErr;
-      }
-
-      // 6) Archive removed ones (optional, requires is_active boolean column)
       const keptDbIds = new Set(updates.map(u => u.rawId));
       const toArchive = [...existingIds].filter(id => !keptDbIds.has(id));
-      if (toArchive.length) {
-        const { error: archErr } = await supabase
-          .from('log_template_fields')
-          .update({ is_active: false })
-          .in('id', toArchive);
-        if (archErr) throw archErr;
-      }
+      if (toArchive.length) await archiveFields(KIND, toArchive);
 
       Alert.alert('Success', 'Template updated.');
       setDetailsVisible(false);
@@ -348,123 +182,81 @@ export default function LogTemplatesScreen() {
     }
   };
 
-
-
-  // Delete template (cascades properties)
+  // Delete template
   const deleteTemplate = async () => {
     if (!selectedTemplate) return;
-
-    const { error } = await supabase
-      .from('log_templates')
-      .delete()
-      .eq('id', selectedTemplate.id);
-
-    if (error) {
-      console.error('delete template error:', error);
+    try {
+      await deleteTemplateApi(KIND, selectedTemplate.id);
+    } catch (e) {
+      console.error('delete template error:', e);
       Alert.alert('Error', 'Failed to delete template.');
       return;
     }
-
     Alert.alert('Deleted', 'Template removed.');
     setDetailsVisible(false);
     setSelectedTemplate(null);
     await loadTemplates();
   };
 
-  function AutoShrinkText({
-    children,
-    style,
-    maxLines = 2,
-    initialSize = 18,
-    minSize = 8,
-  }) {
-    const [fontSize, setFontSize] = React.useState(initialSize);
-    const [didFit, setDidFit] = React.useState(false);
-
-    // Reset when text or initial size changes
-    React.useEffect(() => {
-      setFontSize(initialSize);
-      setDidFit(false);
-    }, [children, initialSize]);
-
-    const onTextLayout = (e) => {
-      if (didFit) return;
-      const lines = e?.nativeEvent?.lines?.length ?? 0;
-      if (lines > maxLines && fontSize > minSize) {
-        // shrink step; you can make it bigger/smaller (e.g., -2)
-        setFontSize((s) => Math.max(minSize, s - 1));
-      } else {
-        setDidFit(true);
-      }
-    };
-
-    return (
-      <Text
-        numberOfLines={maxLines}
-        onTextLayout={onTextLayout}
-        style={[style, { fontSize }]}
-      >
-        {children}
-      </Text>
-    );
-  }
-
-
+  // ---------- UI ----------
   return (
-
     <View style={commonStyles.contentContainer}>
       <Text style={commonStyles.textPrimary}>Log Templates</Text>
-      <View style={[styles.searchBar]}>
-        <Ionicons name="search" size={16} color={"white"} />
-        <TextInput style={styles.searchInput} placeholder="Search..." placeholderTextColor={"white"} value={searchQuery} onChangeText={setSearchQuery} />
+
+      <View style={styles.searchBar}>
+        <Ionicons name="search" size={16} color="white" />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search..."
+          placeholderTextColor="white"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
       </View>
+
       <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-
-
         <View style={styles.displayCardContainer}>
-
           {/* Add NEW template card */}
           <Pressable
             style={[styles.addCard, { width: cardSize, height: cardSize }]}
             onPress={() => setIsModalVisible(true)}
+            accessibilityRole="button"
           >
             <Ionicons name="add" size={addIconSize} color={colors.brand} />
           </Pressable>
 
-          {/* list of templates */}
+          {/* List of templates */}
           {filteredTemplates.map(t => (
             <Pressable
               key={t.id}
               style={[styles.displayCard, { width: cardSize, height: cardSize }]}
               onPress={() => openDetails(t)}
+              accessibilityRole="button"
             >
-
               <View style={styles.nameTextWrap}>
                 <AutoShrinkText
+                  style={styles.nameText}
                   initialSize={cardSize * 0.15}
                   maxLines={5}
                   minSize={1}
-                  style={styles.nameText}
                 >
                   {t.name}
                 </AutoShrinkText>
               </View>
             </Pressable>
           ))}
-
         </View>
-
       </ScrollView>
 
+      {/* Add Template Modal */}
       <Modal
         visible={isModalVisible}
-        transparent={true}
+        transparent
         animationType="fade"
         onRequestClose={() => setIsModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modal}>
-            {/* Header */}
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>New Log Template</Text>
               <Pressable onPress={() => setIsModalVisible(false)}>
@@ -472,12 +264,7 @@ export default function LogTemplatesScreen() {
               </Pressable>
             </View>
 
-            {/* Content */}
-            <ScrollView
-              style={styles.modalScrollView}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
+            <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <View style={styles.modalContent}>
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Template Name</Text>
@@ -490,73 +277,22 @@ export default function LogTemplatesScreen() {
                     placeholderTextColor="#999"
                   />
                   {nameTouched && isDuplicateName && (
-                    <Text style={styles.fieldError}>
-                      A template with this name already exists.
-                    </Text>
+                    <Text style={styles.fieldError}>A template with this name already exists.</Text>
                   )}
                 </View>
 
-                {/* Dynamic Properties */}
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Description</Text>
-                  {properties.map((property, index) => (
-                    <View key={property.id} style={styles.propertyContainer}>
-                      {/* Property Name and Type Row */}
-                      <View style={styles.propertyRow}>
-                        <View style={styles.propertyNameContainer}>
-                          <TextInput
-                            style={[styles.input, styles.propertyNameInput]}
-                            value={property.name}
-                            onChangeText={(value) => updateProperty(property.id, 'name', value)}
-                            placeholder="Description"
-                            placeholderTextColor="#999"
-                          />
-                        </View>
-
-                        <View style={styles.propertyTypeContainer}>
-                          <View style={styles.pickerContainer}>
-                            {Platform.OS !== 'web' && <Text style={styles.pickerLabel}>Type:</Text>}
-                            <View style={styles.pickerWrapper}>
-                              {Platform.OS === 'web' ? (
-                                <select
-                                  value={property.property_type ?? 'text'}
-                                  onChange={(e) => updateProperty(property.id, 'property_type', e.target.value)}
-                                  style={{ width: '100%', height: 40, border: 'none', background: 'transparent' }}
-                                  aria-label="Type"
-                                >
-                                  {PROPERTY_TYPES.map((t) => (
-                                    <option key={t.value} value={t.value}>{t.label}</option>
-                                  ))}
-                                </select>
-                              ) : (
-                                <Picker
-                                  selectedValue={property.property_type ?? 'text'}
-                                  onValueChange={(value) => updateProperty(property.id, 'property_type', value)}
-                                  mode="dropdown"
-                                  style={styles.picker}
-                                >
-                                  {PROPERTY_TYPES.map((t) => (
-                                    <Picker.Item key={t.value} label={t.label} value={t.value} />
-                                  ))}
-                                </Picker>
-                              )}
-                            </View>
-                          </View>
-                        </View>
-
-
-                        {properties.length > 1 && (
-                          <Pressable
-                            style={styles.removeButton}
-                            onPress={() => removeProperty(property.id)}
-                          >
-                            <Ionicons name="trash-outline" size={20} color="#ff4444" />
-                          </Pressable>
-                        )}
-                      </View>
-                    </View>
+                  {properties.map((p) => (
+                    <PropertyRow
+                      key={p.id}
+                      property={p}
+                      onChange={(field, value) => updateProperty(p.id, field, value)}
+                      onRemove={() => removeProperty(p.id)}
+                      canRemove={properties.length > 1}
+                      namePlaceholder="Description"
+                    />
                   ))}
-
                   <Pressable style={styles.addPropertyButton} onPress={addProperty}>
                     <Ionicons name="add" size={20} color={colors.brand} />
                     <Text style={styles.addPropertyText}>Add Property</Text>
@@ -564,12 +300,17 @@ export default function LogTemplatesScreen() {
                 </View>
               </View>
             </ScrollView>
+
             <View style={styles.modalFooter}>
               <View style={styles.buttonContainer}>
                 <Pressable style={styles.cancelButton} onPress={() => setIsModalVisible(false)}>
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </Pressable>
-                <Pressable style={styles.saveButton} onPress={handleAddTemplate}>
+                <Pressable
+                  style={[styles.saveButton, !canSaveNew && { opacity: 0.6 }]}
+                  onPress={canSaveNew ? handleAddTemplate : undefined}
+                  accessibilityState={{ disabled: !canSaveNew }}
+                >
                   <Text style={styles.saveButtonText}>Save</Text>
                 </Pressable>
               </View>
@@ -578,39 +319,24 @@ export default function LogTemplatesScreen() {
         </View>
       </Modal>
 
-      {/* view template */}
+      {/* Details Modal */}
       <Modal
         visible={detailsVisible}
-        transparent={true}
+        transparent
         animationType="fade"
-        onRequestClose={() => {
-          setDetailsVisible(false);
-          setSelectedTemplate(null);
-        }}
+        onRequestClose={() => { setDetailsVisible(false); setSelectedTemplate(null); }}
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modal, { height: '70%' }]}>
-            {/* Header */}
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Template Details</Text>
-              <Pressable
-                onPress={() => {
-                  setDetailsVisible(false);
-                  setSelectedTemplate(null);
-                }}
-              >
+              <Pressable onPress={() => { setDetailsVisible(false); setSelectedTemplate(null); }}>
                 <Ionicons name="close" size={24} color={colors.brand} />
               </Pressable>
             </View>
 
-            {/* Content */}
-            <ScrollView
-              style={styles.modalScrollView}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
+            <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <View style={styles.modalContent}>
-                {/* Template name */}
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Template Name</Text>
                   <TextInput
@@ -622,129 +348,18 @@ export default function LogTemplatesScreen() {
                   />
                 </View>
 
-                {/* Properties */}
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Properties</Text>
-
                   {detailProps.map((p) => (
-                    <View key={p.id} style={styles.propertyContainer}>
-                      <View style={styles.propertyRow}>
-                        {/* Name */}
-                        <View style={styles.propertyNameContainer}>
-                          <TextInput
-                            style={[styles.input, styles.propertyNameInput]}
-                            value={p.name}
-                            onChangeText={(v) => updateDetailProperty(p.id, 'name', v)}
-                            placeholder="Property name"
-                            placeholderTextColor="#999"
-                          />
-                        </View>
-
-                        {/* Type */}
-                        <View style={styles.propertyTypeContainer}>
-                          <View style={styles.pickerContainer}>
-                            {Platform.OS !== 'web' && (
-                              <Text style={styles.pickerLabel}>Type:</Text>
-                            )}
-                            <View style={styles.pickerWrapper}>
-                              {Platform.OS === 'web' ? (
-                                <select
-                                  value={p.property_type ?? 'text'}
-                                  onChange={(e) =>
-                                    updateDetailProperty(p.id, 'property_type', e.target.value)
-                                  }
-                                  style={{
-                                    width: '100%',
-                                    height: 40,
-                                    border: 'none',
-                                    background: 'transparent',
-                                  }}
-                                  aria-label="Type"
-                                >
-                                  <option value="text">Text</option>
-                                  <option value="number">Number</option>
-                                  <option value="date">Date</option>
-                                </select>
-                              ) : (
-                                <Picker
-                                  selectedValue={p.property_type ?? 'text'}
-                                  onValueChange={(value) =>
-                                    updateDetailProperty(p.id, 'property_type', value)
-                                  }
-                                  mode="dropdown"
-                                  style={styles.picker}
-                                >
-                                  <Picker.Item label="Text" value="text" />
-                                  <Picker.Item label="Number" value="number" />
-                                  <Picker.Item label="Date" value="date" />
-                                </Picker>
-                              )}
-                            </View>
-                          </View>
-                        </View>
-
-                        {/* Remove property */}
-                        {detailProps.length > 1 && (
-                          <Pressable
-                            style={styles.removeButton}
-                            onPress={() => removeDetailProperty(p.id)}
-                          >
-                            <Ionicons name="trash-outline" size={20} color="#ff4444" />
-                          </Pressable>
-                        )}
-                      </View>
-
-                      {/* Default value (only for number/date; hide for text) */}
-                      {p.property_type === 'date' ? (
-                        Platform.OS === 'web' ? (
-                          <input
-                            type="date"
-                            value={p.default_value || ''}
-                            onChange={(e) =>
-                              updateDetailProperty(p.id, 'default_value', e.target.value)
-                            }
-                            style={{
-                              width: '100%',
-                              height: 40,
-                              borderWidth: 1,
-                              borderColor: '#ddd',
-                              borderRadius: 8,
-                              padding: 10,
-                              background: '#f9f9f9',
-                              marginTop: 8,
-                            }}
-                          />
-                        ) : (
-                          <TextInput
-                            style={[styles.input, { marginTop: 8 }]}
-                            value={p.default_value}
-                            onChangeText={(v) =>
-                              updateDetailProperty(p.id, 'default_value', v)
-                            }
-                            placeholder="Default date (YYYY-MM-DD)"
-                            placeholderTextColor="#999"
-                          />
-                        )
-                      ) : p.property_type === 'number' ? (
-                        <TextInput
-                          style={[styles.input, { marginTop: 8 }]}
-                          value={p.default_value}
-                          onChangeText={(v) =>
-                            updateDetailProperty(p.id, 'default_value', v)
-                          }
-                          placeholder="Default number value"
-                          placeholderTextColor="#999"
-                          keyboardType="numeric"
-                        />
-                      ) : null}
-
-                    </View>
+                    <PropertyRow
+                      key={p.id}
+                      property={p}
+                      onChange={(field, value) => updateDetailProperty(p.id, field, value)}
+                      onRemove={() => removeDetailProperty(p.id)}
+                      canRemove={detailProps.length > 1}
+                    />
                   ))}
-
-                  <Pressable
-                    style={[styles.addPropertyButton, { marginTop: 8 }]}
-                    onPress={addDetailProperty}
-                  >
+                  <Pressable style={[styles.addPropertyButton, { marginTop: 8 }]} onPress={addDetailProperty}>
                     <Ionicons name="add" size={20} color={colors.brand} />
                     <Text style={styles.addPropertyText}>Add Property</Text>
                   </Pressable>
@@ -752,22 +367,12 @@ export default function LogTemplatesScreen() {
               </View>
             </ScrollView>
 
-            {/* Footer */}
             <View style={styles.modalFooter}>
               <View style={styles.buttonContainer}>
-                <Pressable
-                  style={[styles.cancelButton, { borderColor: '#ff4444' }]}
-                  onPress={deleteTemplate}
-                >
-                  <Text style={[styles.cancelButtonText, { color: '#ff4444' }]}>
-                    Delete Template
-                  </Text>
+                <Pressable style={[styles.cancelButton, { borderColor: '#ff4444' }]} onPress={deleteTemplate}>
+                  <Text style={[styles.cancelButtonText, { color: '#ff4444' }]}>Delete Template</Text>
                 </Pressable>
-
-                <Pressable
-                  style={[styles.saveButton, { marginLeft: 8 }]}
-                  onPress={saveTemplateEdits}
-                >
+                <Pressable style={[styles.saveButton, { marginLeft: 8 }]} onPress={saveTemplateEdits}>
                   <Text style={styles.saveButtonText}>Save Changes</Text>
                 </Pressable>
               </View>
@@ -775,12 +380,12 @@ export default function LogTemplatesScreen() {
           </View>
         </View>
       </Modal>
-
-
     </View>
-
   );
 }
+
+/* Keep your existing styles block below unchanged */
+
 
 export const styles = StyleSheet.create({
   scrollContainer: {

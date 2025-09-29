@@ -1,58 +1,71 @@
-
+// ./AssetsScreen/AddAssetModal.jsx
 import React, { useEffect, useState } from "react";
 import { View, Text, ScrollView, Pressable, Modal, Platform, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
-import { supabase } from "../../lib/supabase";           // note the relative path
+import { supabase } from "../../lib/supabase";
 import { colors } from "../../components/Styles";
 import styles from "./styles";
 import PropertyField from "./components/PropertyField";
 
-
 export default function AddAssetModal({ visible, onClose, onCreate }) {
     const [assetTemplates, setAssetTemplates] = useState([]);
-    const [selectedTemplateId, setSelectedTemplateId] = useState("");
+    const [selectedTemplateId, setSelectedTemplateId] = useState(""); // UUID string
     const [propInputs, setPropInputs] = useState([]); // [{property_id, name, type, value}]
+    const [loadingTemplates, setLoadingTemplates] = useState(false);
+    const [loadingFields, setLoadingFields] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
-    // load templates every time modal opens
+    // Reset all internal state
+    const resetState = () => {
+        setSelectedTemplateId("");
+        setPropInputs([]);
+        setLoadingTemplates(false);
+        setLoadingFields(false);
+        setIsSaving(false);
+    };
+
+    // Load templates whenever modal opens
     useEffect(() => {
         if (!visible) return;
         (async () => {
+            resetState();
+            setLoadingTemplates(true);
             const { data, error } = await supabase
                 .from("asset_templates")
                 .select("id, name")
                 .order("name", { ascending: true });
+
             if (error) {
                 console.error("loadTemplates error:", error);
                 Alert.alert("Error", "Failed to load templates.");
                 setAssetTemplates([]);
-                return;
+            } else {
+                setAssetTemplates(data || []);
             }
-            setAssetTemplates(data || []);
-            // reset state when opening
-            setSelectedTemplateId("");
-            setPropInputs([]);
+            setLoadingTemplates(false);
         })();
     }, [visible]);
 
+    // When template changes, fetch its fields
     const onTemplateChange = async (templateId) => {
         setSelectedTemplateId(templateId);
         setPropInputs([]);
+        if (!templateId) return;
 
-        const tid = Number(templateId);
-        if (!tid) return;
-
-        const { data, error } = await supabase
+        setLoadingFields(true);
+        const query = supabase
             .from("template_properties")
             .select("id, property_name, property_type, default_value, display_order")
-            .eq("template_id", tid)
-            .eq("is_active", true)
+            .eq("template_id", templateId)
             .order("display_order", { ascending: true });
 
+
+        const { data, error } = await query;
         if (error) {
             console.error("fetch template props error:", error);
             Alert.alert("Error", "Failed to load template properties.");
+            setLoadingFields(false);
             return;
         }
 
@@ -63,6 +76,7 @@ export default function AddAssetModal({ visible, onClose, onCreate }) {
             value: p.default_value ?? "",
         }));
         setPropInputs(inputs);
+        setLoadingFields(false);
     };
 
     const updatePropInput = (property_id, value) => {
@@ -71,7 +85,10 @@ export default function AddAssetModal({ visible, onClose, onCreate }) {
         );
     };
 
-    const canSave = selectedTemplateId !== "" && !isSaving;
+    const handleClose = () => {
+        resetState();
+        onClose?.();
+    };
 
     const handleSave = async () => {
         if (!selectedTemplateId) {
@@ -80,32 +97,33 @@ export default function AddAssetModal({ visible, onClose, onCreate }) {
         }
         setIsSaving(true);
         try {
-            await onCreate(Number(selectedTemplateId), propInputs);
-            // close + reset
-            onClose?.();
-            setSelectedTemplateId("");
-            setPropInputs([]);
+            await onCreate(selectedTemplateId, propInputs); // pass UUID string + values
+            handleClose();
         } catch (e) {
             console.error("AddAssetModal.save error:", e);
-            Alert.alert("Error", e.message || "Could not create asset.");
+            Alert.alert("Error", e?.message || "Could not create asset.");
         } finally {
             setIsSaving(false);
         }
     };
+
+    const canSave = !!selectedTemplateId && !isSaving;
+
+    if (!visible) return null;
 
     return (
         <Modal
             visible={visible}
             transparent
             animationType="fade"
-            onRequestClose={onClose}
+            onRequestClose={handleClose}
         >
             <View style={styles.modalOverlay}>
                 <View style={styles.modal}>
                     {/* Header */}
                     <View style={styles.modalHeader}>
                         <Text style={styles.modalTitle}>New Asset</Text>
-                        <Pressable onPress={onClose}>
+                        <Pressable onPress={handleClose}>
                             <Ionicons name="close" size={24} color={colors.brand} />
                         </Pressable>
                     </View>
@@ -117,6 +135,7 @@ export default function AddAssetModal({ visible, onClose, onCreate }) {
                         keyboardShouldPersistTaps="handled"
                     >
                         <View style={styles.modalContent}>
+                            {/* Template Picker */}
                             <View style={styles.inputGroup}>
                                 <Text style={styles.label}>Template</Text>
 
@@ -127,8 +146,11 @@ export default function AddAssetModal({ visible, onClose, onCreate }) {
                                             onChange={(e) => onTemplateChange(e.target.value)}
                                             style={{ width: "100%", height: 40, border: "none", background: "transparent" }}
                                             aria-label="Template"
+                                            disabled={loadingTemplates}
                                         >
-                                            <option value="">Select a template</option>
+                                            <option value="">
+                                                {loadingTemplates ? "Loading templates…" : "Select a template"}
+                                            </option>
                                             {assetTemplates.map((t) => (
                                                 <option key={t.id} value={t.id}>
                                                     {t.name}
@@ -140,19 +162,23 @@ export default function AddAssetModal({ visible, onClose, onCreate }) {
                                     <View style={styles.pickerWrapper}>
                                         <Picker
                                             selectedValue={selectedTemplateId}
-                                            onValueChange={(v) => onTemplateChange(v)}
+                                            onValueChange={onTemplateChange}
                                             mode="dropdown"
                                             style={styles.picker}
+                                            enabled={!loadingTemplates}
                                         >
-                                            <Picker.Item label="Select a template" value={""} />
+                                            <Picker.Item
+                                                label={loadingTemplates ? "Loading templates…" : "Select a template"}
+                                                value=""
+                                            />
                                             {assetTemplates.map((t) => (
-                                                <Picker.Item key={t.id} label={t.name} value={String(t.id)} />
+                                                <Picker.Item key={t.id} label={t.name} value={t.id} />
                                             ))}
                                         </Picker>
                                     </View>
                                 )}
 
-                                {assetTemplates.length === 0 && (
+                                {!loadingTemplates && assetTemplates.length === 0 && (
                                     <Text style={styles.helperText}>
                                         No templates yet. Create a template first.
                                     </Text>
@@ -160,22 +186,44 @@ export default function AddAssetModal({ visible, onClose, onCreate }) {
                             </View>
 
                             {/* Template property inputs */}
-                            {!!selectedTemplateId && propInputs.length > 0 && (
+                            {!!selectedTemplateId && (
                                 <View style={styles.inputGroup}>
                                     <Text style={styles.label}>Properties</Text>
-                                    {propInputs.map((p) => (
-                                        <View key={p.property_id} style={styles.propertyContainer}>
-                                            <Text style={{ marginBottom: 6, color: colors.primary, fontWeight: "600" }}>
-                                                {p.name} {p.type === "number" ? "(Number)" : p.type === "date" ? "(Date)" : ""}
-                                            </Text>
-                                            <PropertyField
-                                                type={p.type}
-                                                value={p.value}
-                                                onChange={(v) => updatePropInput(p.property_id, v)}
-                                                style={styles.input}
-                                            />
-                                        </View>
-                                    ))}
+
+                                    {loadingFields && (
+                                        <Text style={styles.helperText}>Loading fields…</Text>
+                                    )}
+
+                                    {!loadingFields && propInputs.length === 0 && (
+                                        <Text style={styles.helperText}>This template has no fields.</Text>
+                                    )}
+
+                                    {!loadingFields &&
+                                        propInputs.map((p) => (
+                                            <View key={p.property_id} style={styles.propertyContainer}>
+                                                <Text
+                                                    style={{
+                                                        marginBottom: 6,
+                                                        color: colors.primary,
+                                                        fontWeight: "600",
+                                                    }}
+                                                >
+                                                    {p.name}
+                                                    {p.type === "number"
+                                                        ? " (Number)"
+                                                        : p.type === "date"
+                                                            ? " (Date)"
+                                                            : ""}
+                                                </Text>
+
+                                                <PropertyField
+                                                    type={p.type}
+                                                    value={p.value}
+                                                    onChange={(v) => updatePropInput(p.property_id, v)}
+                                                    style={styles.input}
+                                                />
+                                            </View>
+                                        ))}
                                 </View>
                             )}
                         </View>
@@ -184,9 +232,10 @@ export default function AddAssetModal({ visible, onClose, onCreate }) {
                     {/* Footer */}
                     <View style={styles.modalFooter}>
                         <View style={styles.buttonContainer}>
-                            <Pressable style={styles.cancelButton} onPress={onClose}>
+                            <Pressable style={styles.cancelButton} onPress={handleClose}>
                                 <Text style={styles.cancelButtonText}>Cancel</Text>
                             </Pressable>
+
                             <Pressable
                                 style={[styles.saveButton, { opacity: canSave ? 1 : 0.6 }]}
                                 onPress={handleSave}
