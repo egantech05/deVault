@@ -71,36 +71,15 @@ export default function WarehouseModal({ visible, onClose, item, onAnySave }) {
     async function performDelete() {
         if (deleting) return;
         setDeleting(true);
-
         try {
-            // Try to remove asset links using common column names; ignore “column does not exist”.
-            const LINK_TABLE = "asset_components";
-            const candidates = ["component_id", "component_catalog_id", "componentId"];
-
-            for (const col of candidates) {
-                const { error } = await supabase.from(LINK_TABLE).delete().eq(col, item.id);
-                if (!error) break; // deleted or no rows matched — good enough
-                const msg = (error.message || "").toLowerCase();
-                if (msg.includes("column") && msg.includes("does not exist")) {
-                    // wrong column for this schema; try next
-                    continue;
-                }
-                if (msg.includes("view") && msg.includes("delete")) {
-                    // underlying object is a view; skip and rely on FK cascade or continue with next table
-                    break;
-                }
-                // Any other error — surface it
-                throw error;
-            }
-
-            // Remove inventory history (we know this table/column exists in your app)
+            // 1) Remove inventory history
             const { error: movesErr } = await supabase
                 .from("inventory_movements")
                 .delete()
                 .eq("component_id", item.id);
             if (movesErr) throw movesErr;
 
-            // Finally delete the component itself
+            // 2) Delete the component itself
             const { error: compErr } = await supabase
                 .from("components_catalog")
                 .delete()
@@ -116,6 +95,7 @@ export default function WarehouseModal({ visible, onClose, item, onAnySave }) {
             setDeleting(false);
         }
     }
+
 
 
 
