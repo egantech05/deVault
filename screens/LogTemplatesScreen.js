@@ -282,7 +282,7 @@ export default function LogTemplatesScreen() {
                 </View>
 
                 <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Description</Text>
+                  <Text style={styles.label}>Properties</Text>
                   {properties.map((p) => (
                     <PropertyRow
                       key={p.id}
@@ -290,7 +290,7 @@ export default function LogTemplatesScreen() {
                       onChange={(field, value) => updateProperty(p.id, field, value)}
                       onRemove={() => removeProperty(p.id)}
                       canRemove={properties.length > 1}
-                      namePlaceholder="Description"
+                      namePlaceholder="Property Name"
                     />
                   ))}
                   <Pressable style={styles.addPropertyButton} onPress={addProperty}>

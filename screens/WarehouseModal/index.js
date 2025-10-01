@@ -16,6 +16,10 @@ export default function WarehouseModal({ visible, onClose, item, onAnySave }) {
     const [notesVisible, setNotesVisible] = useState(false);
     const [notes, setNotes] = useState("");
 
+    const [deleteVisible, setDeleteVisible] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+
+
 
     const title = useMemo(() => item?.model || "Component", [item?.model]);
     if (!visible || !item) return null;
@@ -49,11 +53,71 @@ export default function WarehouseModal({ visible, onClose, item, onAnySave }) {
     // Helper inside the component (top-level of WarehouseModal)
     const qtyNum = Number.parseInt(qty || "0", 10) || 0;
 
+
+
     const bump = (delta) => {
         // allow up/down including negatives
         const next = (Number.isFinite(qtyNum) ? qtyNum : 0) + delta;
         setQty(String(next));
     };
+
+
+
+    function openDeleteConfirm() {
+        setDeleteVisible(true);
+
+    }
+
+    async function performDelete() {
+        if (deleting) return;
+        setDeleting(true);
+
+        try {
+            // Try to remove asset links using common column names; ignore “column does not exist”.
+            const LINK_TABLE = "asset_components";
+            const candidates = ["component_id", "component_catalog_id", "componentId"];
+
+            for (const col of candidates) {
+                const { error } = await supabase.from(LINK_TABLE).delete().eq(col, item.id);
+                if (!error) break; // deleted or no rows matched — good enough
+                const msg = (error.message || "").toLowerCase();
+                if (msg.includes("column") && msg.includes("does not exist")) {
+                    // wrong column for this schema; try next
+                    continue;
+                }
+                if (msg.includes("view") && msg.includes("delete")) {
+                    // underlying object is a view; skip and rely on FK cascade or continue with next table
+                    break;
+                }
+                // Any other error — surface it
+                throw error;
+            }
+
+            // Remove inventory history (we know this table/column exists in your app)
+            const { error: movesErr } = await supabase
+                .from("inventory_movements")
+                .delete()
+                .eq("component_id", item.id);
+            if (movesErr) throw movesErr;
+
+            // Finally delete the component itself
+            const { error: compErr } = await supabase
+                .from("components_catalog")
+                .delete()
+                .eq("id", item.id);
+            if (compErr) throw compErr;
+
+            setDeleteVisible(false);
+            onAnySave?.();
+            onClose?.();
+        } catch (e) {
+            Alert.alert("Error", e?.message || "Failed to delete component");
+        } finally {
+            setDeleting(false);
+        }
+    }
+
+
 
 
     return (
@@ -89,11 +153,10 @@ export default function WarehouseModal({ visible, onClose, item, onAnySave }) {
                         contentContainerStyle={styles.scrollPadBottom}
                     >
                         <View style={styles.modalContent}>
-                            {tab === TABS.INFO ? <InfoTab item={item} /> : <HistoricalTab item={item} />}
+                            {tab === TABS.INFO ? <InfoTab item={item} onDelete={openDeleteConfirm} /> : <HistoricalTab item={item} />}
                         </View>
                     </ScrollView>
 
-                    {/* Footer */}
                     {/* Footer */}
                     <View style={styles.modalFooter}>
                         {tab === TABS.INFO ? (
@@ -243,6 +306,64 @@ export default function WarehouseModal({ visible, onClose, item, onAnySave }) {
                                         onPress={saveWithNotes}
                                     >
                                         <Text style={styles.saveButtonText}>Save</Text>
+                                    </Pressable>
+                                </View>
+                            </View>
+                        </View>
+                    </Modal>
+
+                    {/* Delete confirm mini-modal */}
+                    <Modal
+                        visible={deleteVisible}
+                        transparent
+                        animationType="fade"
+                        onRequestClose={() => setDeleteVisible(false)}
+                    >
+                        <View style={[styles.modalOverlay, { justifyContent: "center", alignItems: "center" }]}>
+                            <View
+                                style={{
+                                    width: 420,
+                                    maxWidth: "92%",
+                                    borderRadius: 16,
+                                    backgroundColor: "#fff",
+                                    padding: 16,
+                                    shadowColor: "#000",
+                                    shadowOpacity: 0.15,
+                                    shadowRadius: 12,
+                                    shadowOffset: { width: 0, height: 4 },
+                                    elevation: 6,
+                                }}
+                            >
+                                {/* Header */}
+                                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                                    <Text style={{ fontSize: 20, fontWeight: "800", color: "#111" }}>Delete component?</Text>
+                                    <Pressable onPress={() => setDeleteVisible(false)}>
+                                        <Ionicons name="close" size={22} color={colors.brand} />
+                                    </Pressable>
+                                </View>
+
+                                {/* Body */}
+                                <View>
+                                    <Text style={{ color: "#333" }}>
+                                        This will permanently remove <Text style={{ fontWeight: "700" }}>{item.model}</Text> and all links/history. This action cannot be undone.
+                                    </Text>
+                                </View>
+
+                                {/* Footer */}
+                                <View style={{ flexDirection: "row", marginTop: 12 }}>
+                                    <Pressable
+                                        style={[styles.cancelButton, { flex: 1, marginRight: 8 }]}
+                                        onPress={() => setDeleteVisible(false)}
+                                        disabled={deleting}
+                                    >
+                                        <Text style={styles.cancelButtonText}>Cancel</Text>
+                                    </Pressable>
+                                    <Pressable
+                                        onPress={performDelete}
+                                        disabled={deleting}
+                                        style={[styles.saveButton, { flex: 1, marginLeft: 8, backgroundColor: "#B00020" }]}
+                                    >
+                                        <Text style={styles.saveButtonText}>{deleting ? "Deleting…" : "Delete"}</Text>
                                     </Pressable>
                                 </View>
                             </View>

@@ -459,7 +459,7 @@ export default function LogsTab({ asset }) {
                                             disabled={savingLog}
                                             onPress={saveNewLog}
                                         >
-                                            <Text style={styles.saveButtonText}>{savingLog ? "Saving…" : "Save Log"}</Text>
+                                            <Text style={styles.saveButtonText}>{savingLog ? "Saving…" : "Save"}</Text>
                                         </Pressable>
                                     </>
                                 )}
