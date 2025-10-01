@@ -1,5 +1,5 @@
 export const getCardSize = (width) => {
-    const gutter = 16;
+    const gutter = 0;
     const pad = 0;
     const avail = width - pad;
 
