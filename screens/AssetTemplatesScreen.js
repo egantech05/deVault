@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, useWindowDimensions,
+  View, Text, StyleSheet, FlatList, useWindowDimensions,
   TextInput, Pressable, Modal, Alert
 } from "react-native";
 import { colors, commonStyles } from "../components/Styles";
@@ -57,6 +57,7 @@ export default function AssetTemplatesScreen() {
   // Layout
   const cardSize = getCardSize(width);
   const addIconSize = 0.5 * cardSize;
+  const numColumns = Math.max(1, Math.floor(width / (cardSize + 16)));
 
   // Create-modal helpers
   const nextIdRef = useRef(2);
@@ -198,6 +199,46 @@ export default function AssetTemplatesScreen() {
     await loadTemplates();
   };
 
+  // ---- Main list renderers ---------------------------------------------------
+  const mainListData = useMemo(
+    () => [{ _type: "add", id: "__add__" }, ...filteredTemplates],
+    [filteredTemplates]
+  );
+
+  const renderMainItem = ({ item }) => {
+    if (item._type === "add") {
+      return (
+        <Pressable
+          style={[styles.addCard, { width: cardSize, height: cardSize }]}
+          onPress={() => setIsModalVisible(true)}
+          accessibilityRole="button"
+        >
+          <Ionicons name="add" size={addIconSize} color={colors.brand} />
+        </Pressable>
+      );
+    }
+    return (
+      <Pressable
+        style={[styles.displayCard, { width: cardSize, height: cardSize }]}
+        onPress={() => openDetails(item)}
+        accessibilityRole="button"
+      >
+        <Text style={[styles.countText, { fontSize: cardSize * 0.10 }]}>
+          {item.assetCount}
+        </Text>
+        <View style={styles.nameTextWrap}>
+          <AutoShrinkText
+            style={[styles.nameText, { fontSize: cardSize * 0.15 }]}
+            initialSize={cardSize * 0.15}
+            maxLines={2}
+          >
+            {item.name}
+          </AutoShrinkText>
+        </View>
+      </Pressable>
+    );
+  };
+
   // ---------- UI ----------
   return (
     <View style={commonStyles.contentContainer}>
@@ -214,41 +255,23 @@ export default function AssetTemplatesScreen() {
         />
       </View>
 
-      <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-        <View style={styles.displayCardContainer}>
-          {/* Add NEW template card */}
-          <Pressable
-            style={[styles.addCard, { width: cardSize, height: cardSize }]}
-            onPress={() => setIsModalVisible(true)}
-            accessibilityRole="button"
-          >
-            <Ionicons name="add" size={addIconSize} color={colors.brand} />
-          </Pressable>
-
-          {/* List of templates */}
-          {filteredTemplates.map(t => (
-            <Pressable
-              key={t.id}
-              style={[styles.displayCard, { width: cardSize, height: cardSize }]}
-              onPress={() => openDetails(t)}
-              accessibilityRole="button"
-            >
-              <Text style={[styles.countText, { fontSize: cardSize * 0.10 }]}>
-                {t.assetCount}
-              </Text>
-              <View style={styles.nameTextWrap}>
-                <AutoShrinkText
-                  style={[styles.nameText, { fontSize: cardSize * 0.15 }]}
-                  initialSize={cardSize * 0.15}
-                  maxLines={2}
-                >
-                  {t.name}
-                </AutoShrinkText>
-              </View>
-            </Pressable>
-          ))}
-        </View>
-      </ScrollView>
+      {/* Main grid list */}
+      <FlatList
+        data={mainListData}
+        keyExtractor={(item) => String(item.id)}
+        renderItem={renderMainItem}
+        numColumns={numColumns}
+        columnWrapperStyle={numColumns > 1 ? styles.displayCardContainer : null}
+        contentContainerStyle={numColumns === 1 ? styles.displayCardContainer : undefined}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        ListEmptyComponent={
+          <Text style={{ color: "#888", marginTop: 12 }}>No templates found.</Text>
+        }
+        initialNumToRender={12}
+        windowSize={5}
+        removeClippedSubviews
+      />
 
       {/* Add Template Modal */}
       <Modal
@@ -266,42 +289,55 @@ export default function AssetTemplatesScreen() {
               </Pressable>
             </View>
 
-            <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              <View style={styles.modalContent}>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Template Name</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={templateName}
-                    onChangeText={(v) => { setTemplateName(v); setNameTouched(true); }}
-                    onBlur={() => setNameTouched(true)}
-                    placeholder="Enter template name"
-                    placeholderTextColor="#999"
-                  />
-                  {nameTouched && isDuplicateName && (
-                    <Text style={styles.fieldError}>A template with this name already exists.</Text>
-                  )}
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Properties</Text>
-                  {properties.map((p) => (
-                    <PropertyRow
-                      key={p.id}
-                      property={p}
-                      onChange={(field, value) => updateProperty(p.id, field, value)}
-                      onRemove={() => removeProperty(p.id)}
-                      canRemove={properties.length > 1}
-                      namePlaceholder="Description"
+            {/* Modal body as FlatList: header = name input, list = properties */}
+            <FlatList
+              data={properties}
+              keyExtractor={(item) => String(item.id)}
+              renderItem={({ item }) => (
+                <PropertyRow
+                  property={item}
+                  onChange={(field, value) => updateProperty(item.id, field, value)}
+                  onRemove={() => removeProperty(item.id)}
+                  canRemove={properties.length > 1}
+                  namePlaceholder="Description"
+                />
+              )}
+              ListHeaderComponent={
+                <View style={styles.modalContent}>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Template Name</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={templateName}
+                      onChangeText={(v) => { setTemplateName(v); setNameTouched(true); }}
+                      onBlur={() => setNameTouched(true)}
+                      placeholder="Enter template name"
+                      placeholderTextColor="#999"
                     />
-                  ))}
+                    {nameTouched && isDuplicateName && (
+                      <Text style={styles.fieldError}>
+                        A template with this name already exists.
+                      </Text>
+                    )}
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Properties</Text>
+                  </View>
+                </View>
+              }
+              ListFooterComponent={
+                <View style={[styles.modalContent, { paddingTop: 0 }]}>
                   <Pressable style={styles.addPropertyButton} onPress={addProperty}>
                     <Ionicons name="add" size={20} color={colors.brand} />
                     <Text style={styles.addPropertyText}>Add Property</Text>
                   </Pressable>
                 </View>
-              </View>
-            </ScrollView>
+              }
+              contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20 }}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            />
 
             <View style={styles.modalFooter}>
               <View style={styles.buttonContainer}>
@@ -337,37 +373,48 @@ export default function AssetTemplatesScreen() {
               </Pressable>
             </View>
 
-            <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              <View style={styles.modalContent}>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Template Name</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={detailName}
-                    onChangeText={setDetailName}
-                    placeholder="Enter template name"
-                    placeholderTextColor="#999"
-                  />
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Properties</Text>
-                  {detailProps.map((p) => (
-                    <PropertyRow
-                      key={p.id}
-                      property={p}
-                      onChange={(field, value) => updateDetailProperty(p.id, field, value)}
-                      onRemove={() => removeDetailProperty(p.id)}
-                      canRemove={detailProps.length > 1}
+            {/* Modal body as FlatList */}
+            <FlatList
+              data={detailProps}
+              keyExtractor={(item) => String(item.id)}
+              renderItem={({ item }) => (
+                <PropertyRow
+                  property={item}
+                  onChange={(field, value) => updateDetailProperty(item.id, field, value)}
+                  onRemove={() => removeDetailProperty(item.id)}
+                  canRemove={detailProps.length > 1}
+                />
+              )}
+              ListHeaderComponent={
+                <View style={styles.modalContent}>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Template Name</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={detailName}
+                      onChangeText={setDetailName}
+                      placeholder="Enter template name"
+                      placeholderTextColor="#999"
                     />
-                  ))}
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Properties</Text>
+                  </View>
+                </View>
+              }
+              ListFooterComponent={
+                <View style={[styles.modalContent, { paddingTop: 0 }]}>
                   <Pressable style={[styles.addPropertyButton, { marginTop: 8 }]} onPress={addDetailProperty}>
                     <Ionicons name="add" size={20} color={colors.brand} />
                     <Text style={styles.addPropertyText}>Add Property</Text>
                   </Pressable>
                 </View>
-              </View>
-            </ScrollView>
+              }
+              contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20 }}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            />
 
             <View style={styles.modalFooter}>
               <View style={styles.buttonContainer}>
@@ -387,20 +434,15 @@ export default function AssetTemplatesScreen() {
 }
 
 export const styles = StyleSheet.create({
-  scrollContainer: {
-    flex: 1,
-  },
+  scrollContainer: { flex: 1 },
   displayCardContainer: {
-
     flex: 1,
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "center",
-
   },
 
   searchBar: {
-
     padding: 16,
     borderColor: "white",
     borderBottomWidth: 3,
@@ -408,20 +450,18 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     marginBottom: 8,
   },
-
   searchInput: {
     color: 'white',
     marginLeft: 16,
     flex: 1,
-
   },
+
   displayCard: {
     backgroundColor: "white",
     padding: 12,
     borderRadius: 13,
     margin: 8,
   },
-
   addCard: {
     backgroundColor: colors.secondary,
     padding: 12,
@@ -430,283 +470,100 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-
-  countText: {
-    alignSelf: 'flex-end',
-    fontWeight: 'bold',
-  },
-
-  nameText: {
-
-    fontWeight: 'bold',
-  },
-
-  nameTextWrap: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
+  countText: { alignSelf: 'flex-end', fontWeight: 'bold' },
+  nameText: { fontWeight: 'bold' },
+  nameTextWrap: { flex: 1, justifyContent: 'flex-end' },
 
   modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center', alignItems: 'center',
   },
   modal: {
-    width: '90%',
-    backgroundColor: 'white',
-    borderRadius: 16,
-    height: '80%',
-    flexDirection: 'column',
-    overflow: 'visible',
+    width: '90%', backgroundColor: 'white', borderRadius: 16,
+    height: '80%', flexDirection: 'column', overflow: 'visible',
   },
   modalHeader: {
     backgroundColor: colors.primary,
-    borderTopLeftRadius: 13,
-    borderTopRightRadius: 13,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderTopLeftRadius: 13, borderTopRightRadius: 13,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    padding: 20, borderBottomWidth: 1, borderBottomColor: '#e0e0e0',
     flexShrink: 0,
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  modalScrollView: {
-    flex: 1,
-    height: '80%',
-    overflow: 'visible',
-  },
-  modalContent: {
-    padding: 20,
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 16,
-    color: colors.primary,
-    marginBottom: 8,
-  },
+  modalTitle: { fontSize: 18, fontWeight: 'bold', color: 'white' },
+  modalScrollView: { flex: 1, height: '80%', overflow: 'visible' }, // kept if referenced elsewhere
+  modalContent: { padding: 20 },
+
+  inputGroup: { marginBottom: 20 },
+  label: { fontSize: 16, color: colors.primary, marginBottom: 8 },
   input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: '#f9f9f9',
+    borderWidth: 1, borderColor: '#ddd', borderRadius: 8,
+    padding: 12, fontSize: 16, backgroundColor: '#f9f9f9',
   },
+
   modalFooter: {
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-    flexShrink: 0, // Prevent footer from shrinking
+    padding: 20, borderTopWidth: 1, borderTopColor: '#e0e0e0',
+    flexShrink: 0,
   },
-  buttonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 20,
-  },
+  buttonContainer: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 20 },
   cancelButton: {
-    flex: 1,
-    padding: 12,
-    marginRight: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.brand,
+    flex: 1, padding: 12, marginRight: 8, borderRadius: 8,
+    borderWidth: 1, borderColor: colors.brand,
   },
-  cancelButtonText: {
-    textAlign: 'center',
-    color: colors.normal,
-    fontWeight: 'bold',
-  },
+  cancelButtonText: { textAlign: 'center', color: colors.normal, fontWeight: 'bold' },
   saveButton: {
-    flex: 1,
-    padding: 12,
-    marginLeft: 8,
-    borderRadius: 8,
-    backgroundColor: colors.primary,
+    flex: 1, padding: 12, marginLeft: 8, borderRadius: 8, backgroundColor: colors.primary,
   },
-  saveButtonText: {
-    textAlign: 'center',
-    color: 'white',
-    fontWeight: 'bold',
-  },
+  saveButtonText: { textAlign: 'center', color: 'white', fontWeight: 'bold' },
 
-  propertyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  propertyInputs: {
-    flex: 1,
-    marginRight: 8,
-  },
-
-  removeButton: {
-    padding: 8,
-    borderRadius: 6,
-    backgroundColor: '#ffe6e6',
-  },
+  propertyRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  propertyInputs: { flex: 1, marginRight: 8 },
+  removeButton: { padding: 8, borderRadius: 6, backgroundColor: '#ffe6e6' },
   addPropertyButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 12,
-    borderWidth: 2,
-    borderColor: colors.brand,
-    borderStyle: 'dashed',
-    borderRadius: 8,
-    backgroundColor: '#f9f9f9',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    padding: 12, borderWidth: 2, borderColor: colors.brand, borderStyle: 'dashed',
+    borderRadius: 8, backgroundColor: '#f9f9f9',
   },
-  addPropertyText: {
-    marginLeft: 8,
-    color: colors.brand,
-    fontWeight: 'bold',
-  },
+  addPropertyText: { marginLeft: 8, color: colors.brand, fontWeight: 'bold' },
 
   propertyContainer: {
-    backgroundColor: '#f8f9fa',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#e9ecef',
+    backgroundColor: '#f8f9fa', borderRadius: 8, padding: 12,
+    marginBottom: 12, borderWidth: 1, borderColor: '#e9ecef',
   },
 
-
-
-  propertyNameContainer: {
-    flex: 2,
-    marginRight: 8,
-  },
-
-  propertyNameInput: {
-    flex: 1,
-  },
-
+  propertyNameContainer: { flex: 2, marginRight: 8 },
+  propertyNameInput: { flex: 1 },
   propertyTypeContainer: {
-    flex: 1,
-    marginRight: 8,
-    zIndex: 1,
-    position: 'relative',
-    elevation: 4,
+    flex: 1, marginRight: 8, zIndex: 1, position: 'relative', elevation: 4,
   },
-
-  pickerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-
-  pickerLabel: {
-    fontSize: 12,
-    color: colors.primary,
-    marginRight: 4,
-    fontWeight: 'bold',
-  },
-
+  pickerContainer: { flexDirection: 'row', alignItems: 'center' },
+  pickerLabel: { fontSize: 12, color: colors.primary, marginRight: 4, fontWeight: 'bold' },
   pickerWrapper: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 6,
-    backgroundColor: '#f9f9f9',
-    overflow: 'visible',
+    flex: 1, borderWidth: 1, borderColor: '#ddd', borderRadius: 6,
+    backgroundColor: '#f9f9f9', overflow: 'visible',
   },
+  picker: { height: 40, width: '100%' },
 
-  picker: {
-    height: 40,
-    width: '100%',
-  },
+  defaultValueSection: { marginTop: 8 },
+  defaultValueLabel: { fontSize: 12, color: colors.primary, marginBottom: 4, fontWeight: 'bold' },
 
-  defaultValueSection: {
-    marginTop: 8,
-  },
-
-  defaultValueLabel: {
-    fontSize: 12,
-    color: colors.primary,
-    marginBottom: 4,
-    fontWeight: 'bold',
-  },
-
-  booleanContainer: {
-    flexDirection: 'row',
-  },
-
+  booleanContainer: { flexDirection: 'row' },
   booleanButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: colors.brand,
-    borderRadius: 6,
-    marginRight: 8,
+    paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1,
+    borderColor: colors.brand, borderRadius: 6, marginRight: 8,
   },
+  booleanButtonSelected: { backgroundColor: colors.brand },
+  booleanButtonText: { color: colors.brand, fontSize: 12, fontWeight: 'bold' },
+  booleanButtonTextSelected: { color: 'white' },
 
-  booleanButtonSelected: {
-    backgroundColor: colors.brand,
-  },
-
-  booleanButtonText: {
-    color: colors.brand,
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-
-  booleanButtonTextSelected: {
-    color: 'white',
-  },
-
-  selectContainer: {
-    marginTop: 4,
-  },
-
-  selectLabel: {
-    fontSize: 12,
-    color: colors.primary,
-    marginBottom: 4,
-    fontWeight: 'bold',
-  },
-
-  selectOptionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-
-  selectOptionInput: {
-    flex: 1,
-    marginRight: 8,
-    fontSize: 12,
-  },
-
-  removeOptionButton: {
-    padding: 4,
-  },
-
+  selectContainer: { marginTop: 4 },
+  selectLabel: { fontSize: 12, color: colors.primary, marginBottom: 4, fontWeight: 'bold' },
+  selectOptionRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  selectOptionInput: { flex: 1, marginRight: 8, fontSize: 12 },
+  removeOptionButton: { padding: 4 },
   addOptionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 8,
-    borderWidth: 1,
-    borderColor: colors.brand,
-    borderStyle: 'dashed',
-    borderRadius: 4,
-    backgroundColor: '#f9f9f9',
-    marginTop: 4,
+    flexDirection: 'row', alignItems: 'center', padding: 8,
+    borderWidth: 1, borderColor: colors.brand, borderStyle: 'dashed',
+    borderRadius: 4, backgroundColor: '#f9f9f9', marginTop: 4,
   },
-
-  addOptionText: {
-    marginLeft: 4,
-    color: colors.brand,
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-
-
-})
+  addOptionText: { marginLeft: 4, color: colors.brand, fontSize: 12, fontWeight: 'bold' },
+});

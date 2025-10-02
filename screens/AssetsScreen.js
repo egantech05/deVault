@@ -1,8 +1,8 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
-  ScrollView,
+  FlatList,
   useWindowDimensions,
   TextInput,
   Pressable,
@@ -15,7 +15,6 @@ import styles from "./AssetsScreen/styles";
 import { colors, commonStyles } from "../components/Styles";
 import AutoShrinkText from "../components/AutoShrinkText";
 import { getCardSize } from "../utils/cardLayout";
-
 
 export default function AssetsScreen() {
   const { width } = useWindowDimensions();
@@ -36,16 +35,25 @@ export default function AssetsScreen() {
   const cardSize = getCardSize(width);
   const addIconSize = 0.5 * cardSize;
 
-  const filteredAssets = assets.filter((a) => {
+  const filteredAssets = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return true;
-    return (
-      (a.templateName || "").toLowerCase().includes(q) ||
-      (a.displayName || "").toLowerCase().includes(q)
+    if (!q) return assets;
+    return assets.filter(
+      (a) =>
+        (a.templateName || "").toLowerCase().includes(q) ||
+        (a.displayName || "").toLowerCase().includes(q)
     );
-  });
+  }, [assets, searchQuery]);
 
-  // --- Handlers ---
+  // Build data with a leading "add" tile
+  const listData = useMemo(
+    () => [{ _type: "add", id: "__add__" }, ...filteredAssets],
+    [filteredAssets]
+  );
+
+  // Try to estimate columns so the cards look similar to your old wrap layout
+  const numColumns = Math.max(1, Math.floor(width / (cardSize + 16)));
+
   const openAssetDetails = (card) => {
     setSelectedAsset({
       id: card.id,
@@ -54,8 +62,48 @@ export default function AssetsScreen() {
     });
   };
 
-
   const closeDetails = () => setSelectedAsset(null);
+
+  const renderItem = ({ item }) => {
+    // Add tile
+    if (item._type === "add") {
+      return (
+        <Pressable
+          style={[styles.addCard, { width: cardSize, height: cardSize }]}
+          onPress={() => setIsModalVisible(true)}
+        >
+          <Ionicons name="add" size={addIconSize} color={colors.brand} />
+        </Pressable>
+      );
+    }
+
+    // Asset tiles
+    return (
+      <Pressable
+        key={item.id}
+        style={[styles.displayCard, { width: cardSize, height: cardSize }]}
+        onPress={() => openAssetDetails(item)}
+      >
+        <AutoShrinkText
+          style={[styles.templateText, { fontSize: cardSize * 0.1 }]}
+          initialSize={cardSize * 0.1}
+          maxLines={2}
+        >
+          {item.templateName}
+        </AutoShrinkText>
+
+        <View style={styles.nameTextWrap}>
+          <AutoShrinkText
+            style={[styles.nameText, { fontSize: cardSize * 0.15 }]}
+            initialSize={cardSize * 0.15}
+            maxLines={2}
+          >
+            {item.firstProp}
+          </AutoShrinkText>
+        </View>
+      </Pressable>
+    );
+  };
 
   return (
     <View style={commonStyles.contentContainer}>
@@ -72,46 +120,27 @@ export default function AssetsScreen() {
         />
       </View>
 
-      <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-        <View style={styles.displayCardContainer}>
-          <Pressable
-            style={[styles.addCard, { width: cardSize, height: cardSize }]}
-            onPress={() => setIsModalVisible(true)} // <-- fixed: wrap in function
-          >
-            <Ionicons name="add" size={addIconSize} color={colors.brand} />
-          </Pressable>
-
-          {filteredAssets.map((item) => (
-            <Pressable
-              key={item.id}
-              style={[styles.displayCard, { width: cardSize, height: cardSize }]}
-              onPress={() => openAssetDetails(item)}
-            >
-              <AutoShrinkText
-                style={[styles.templateText, { fontSize: cardSize * 0.1 }]}
-                initialSize={cardSize * 0.1}
-                maxLines={2}
-              >
-                {item.templateName}
-              </AutoShrinkText>
-
-              <View style={styles.nameTextWrap}>
-                <AutoShrinkText
-                  style={[styles.nameText, { fontSize: cardSize * 0.15 }]}
-                  initialSize={cardSize * 0.15}
-                  maxLines={2}
-                >
-                  {item.firstProp}
-                </AutoShrinkText>
-              </View>
-            </Pressable>
-          ))}
-
-          {!loadingAssets && filteredAssets.length === 0 && (
+      <FlatList
+        data={listData}
+        keyExtractor={(item) => item.id}
+        renderItem={renderItem}
+        numColumns={numColumns}
+        columnWrapperStyle={numColumns > 1 ? styles.displayCardContainer : null}
+        // If your styles.displayCardContainer uses row spacing/padding, it works well here.
+        contentContainerStyle={
+          numColumns === 1 ? styles.displayCardContainer : undefined
+        }
+        ListEmptyComponent={
+          !loadingAssets && (
             <Text style={{ color: "#888", marginTop: 12 }}>No assets found.</Text>
-          )}
-        </View>
-      </ScrollView>
+          )
+        }
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        initialNumToRender={12}
+        windowSize={5}
+        removeClippedSubviews
+      />
 
       {/* Add Asset Modal */}
       <AddAssetModal
@@ -120,7 +149,7 @@ export default function AssetsScreen() {
         onCreate={createAsset}
       />
 
-      {/* Asset Details Modal (owns all details/logs/docs logic) */}
+      {/* Asset Details Modal */}
       <AssetDetailsModal
         visible={!!selectedAsset}
         asset={selectedAsset}

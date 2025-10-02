@@ -4,10 +4,10 @@ export const getCardSize = (width) => {
     const avail = width - pad;
 
     let perRow = 1;
-    if (avail >= 100) perRow = 2;
+    if (avail >= 100) perRow = 3;
     if (avail >= 200) perRow = 3;
     if (avail >= 600) perRow = 4;
-    if (avail >= 800) perRow = 5;
+    if (avail >= 800) perRow = 6;
     if (avail >= 1000) perRow = 8;
 
     const totalGutters = gutter * (perRow + 1);
