@@ -125,7 +125,7 @@ export default function WarehouseScreen() {
             >
                 {/* Qty badge (top-right) */}
                 <View style={styles.qtyBadge}>
-                    <Text style={styles.qtyBadgeText}>{c.qty_on_hand ?? 0}</Text>
+                    <Text style={[styles.qtyBadgeText, { fontSize: cardSize * 0.13 }]}>{c.qty_on_hand ?? 0}</Text>
                 </View>
                 <View style={styles.cardBottom}>
                     <Text
@@ -136,16 +136,11 @@ export default function WarehouseScreen() {
                     </Text>
                     <Text
                         numberOfLines={1}
-                        style={[styles.mfgText, { fontSize: cardSize * 0.11 }]}
+                        style={[styles.mfgText, { fontSize: cardSize * 0.08 }]}
                     >
                         {c.manufacturer || "-"}
                     </Text>
-                    <Text
-                        numberOfLines={3}
-                        style={[styles.descText, { fontSize: cardSize * 0.09 }]}
-                    >
-                        {c.description || "-"}
-                    </Text>
+
                 </View>
             </Pressable>
         );

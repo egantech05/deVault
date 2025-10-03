@@ -79,8 +79,7 @@ const styles = StyleSheet.create({
     },
     qtyBadgeText: { fontWeight: "bold" },
     modelText: { fontWeight: "bold" },
-    mfgText: { marginTop: 0 },
-    descText: { marginTop: 0, opacity: 0.8 },
+    mfgText: { marginTop: 0, opacity: 0.8 },
 
     historyRow: {
         paddingVertical: 10,

@@ -58,11 +58,7 @@ export default function InfoTab({ item, onDelete }) {
                     value={String(minStock)}
                     editable={false}
                 />
-                <Text style={[s.helperText, isLow && s.helperTextLow]}>
-                    {isLow
-                        ? `Low stock: ${qtyOnHand} < ${minStock}`
-                        : "Stock is at or above the minimum."}
-                </Text>
+
             </View>
 
             {/* Delete button (full width, dashed red) */}

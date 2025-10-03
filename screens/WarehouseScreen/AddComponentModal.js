@@ -1,10 +1,12 @@
 // screens/WarehouseScreen/AddComponentModal.js
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Modal, View, Text, TextInput, Pressable, Alert, ActivityIndicator, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import styles from "./styles";
 import { colors } from "../../components/Styles";
 import { supabase } from "../../lib/supabase";
+
+const TABLE_COMPONENTS = "components_catalog";
 
 export default function AddComponentModal({ visible, onClose, onCreated }) {
     const [model, setModel] = useState("");
@@ -12,59 +14,127 @@ export default function AddComponentModal({ visible, onClose, onCreated }) {
     const [description, setDescription] = useState("");
     const [minStock, setMinStock] = useState("0");
     const [initialQty, setInitialQty] = useState("0");
+
     const [saving, setSaving] = useState(false);
 
-    const TABLE_COMPONENTS = "components_catalog";
+    // validation state
+    const [checkingModel, setCheckingModel] = useState(false);
+    const [modelError, setModelError] = useState(null);
 
-    const canSave = useMemo(() => model.trim().length > 0 && !saving, [model, saving]);
+    // for debounced validation cancellation
+    const debounceTimer = useRef(null);
+    const latestCheckId = useRef(0);
+
+    const trimmedModel = (model || "").trim();
+
+    const canSave = useMemo(() => {
+        return trimmedModel.length > 0 && !saving && !checkingModel && !modelError;
+    }, [trimmedModel, saving, checkingModel, modelError]);
+
+    // reset form/validation when modal opens
+    useEffect(() => {
+        if (!visible) return;
+        setModel("");
+        setManufacturer("");
+        setDescription("");
+        setMinStock("0");
+        setInitialQty("0");
+        setModelError(null);
+        setCheckingModel(false);
+        // clear any pending timers
+        if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    }, [visible]);
+
+    // Debounced check: does a component with this model already exist?
+    useEffect(() => {
+        if (!visible) return;
+
+        // clear previous debounce
+        if (debounceTimer.current) clearTimeout(debounceTimer.current);
+
+        // empty -> no error, nothing to check
+        if (trimmedModel.length === 0) {
+            setModelError(null);
+            setCheckingModel(false);
+            return;
+        }
+
+        // start debounce
+        debounceTimer.current = setTimeout(async () => {
+            const checkId = ++latestCheckId.current;
+            setCheckingModel(true);
+            try {
+                // Uniqueness by MODEL only (regardless of manufacturer)
+                const { count, error } = await supabase
+                    .from(TABLE_COMPONENTS)
+                    .select("id", { count: "exact", head: true })
+                    .eq("model", trimmedModel);
+
+                // Ignore outdated checks
+                if (checkId !== latestCheckId.current) return;
+
+                if (error) {
+                    // If the API errors, don't block save—surface soft message and continue
+                    setModelError(null);
+                } else if ((count ?? 0) > 0) {
+                    setModelError("This model already exists. Choose a different model.");
+                } else {
+                    setModelError(null);
+                }
+            } catch {
+                // network/unknown: don't hard-block on validation error
+                if (checkId === latestCheckId.current) setModelError(null);
+            } finally {
+                if (checkId === latestCheckId.current) setCheckingModel(false);
+            }
+        }, 350); // 350ms debounce
+
+        // cleanup on change/unmount
+        return () => {
+            if (debounceTimer.current) clearTimeout(debounceTimer.current);
+        };
+    }, [trimmedModel, visible]);
 
     async function handleSave() {
         if (!canSave || saving) return;
 
-        const TABLE_COMPONENTS = "components_catalog"; // FK target for inventory_movements.component_id
-
-        const modelKey = (model || "").trim();
+        const modelKey = trimmedModel;
         const mfgKey = (manufacturer || "").trim() || null;
         const descVal = (description || "").trim() || null;
 
-        // normalize numbers
         const min_stock = Number.isFinite(parseInt(minStock, 10)) ? parseInt(minStock, 10) : 0;
         const init_qty = Number.isFinite(parseInt(initialQty, 10)) ? parseInt(initialQty, 10) : 0;
 
-        if (!modelKey) {
-            Alert.alert("Missing model", "Please enter a model.");
-            return;
-        }
-
         setSaving(true);
         try {
-            // 1) Find existing by (model, manufacturer) — handle NULL manufacturer with .is()
-            let sel = supabase.from(TABLE_COMPONENTS).select("id").eq("model", modelKey).limit(1);
-            sel = mfgKey === null ? sel.is("manufacturer", null) : sel.eq("manufacturer", mfgKey);
-
-            const { data: existingRows, error: selErr } = await sel;
-            if (selErr) throw selErr;
-
-            let compId = existingRows?.[0]?.id ?? null;
-
-            // 2) Update or insert into components_catalog
-            if (compId) {
-                const { error: updErr } = await supabase
+            // Final guard: re-check uniqueness by model
+            {
+                const { count, error } = await supabase
                     .from(TABLE_COMPONENTS)
-                    .update({ manufacturer: mfgKey, description: descVal, min_stock })
-                    .eq("id", compId);
-                if (updErr) throw updErr;
-            } else {
-                const { data: comp, error: insErr } = await supabase
-                    .from(TABLE_COMPONENTS)
-                    .insert([{ model: modelKey, manufacturer: mfgKey, description: descVal, min_stock }])
-                    .select("id")
-                    .single();
-                if (insErr) throw insErr;
-                compId = comp.id;
+                    .select("id", { count: "exact", head: true })
+                    .eq("model", modelKey);
+
+                if (error) {
+                    throw error;
+                }
+                if ((count ?? 0) > 0) {
+                    setModelError("This model already exists. Choose a different model.");
+                    setSaving(false);
+                    return;
+                }
             }
 
-            // 3) Optional initial movement (uses FK to components_catalog.id)
+            // Insert brand new component (no auto-update of existing)
+            const { data: comp, error: insErr } = await supabase
+                .from(TABLE_COMPONENTS)
+                .insert([{ model: modelKey, manufacturer: mfgKey, description: descVal, min_stock }])
+                .select("id")
+                .single();
+            if (insErr) throw insErr;
+
+            const compId = comp.id;
+
+            // Optional initial movement
             if (init_qty !== 0) {
                 const { error: mvErr } = await supabase
                     .from("inventory_movements")
@@ -72,16 +142,12 @@ export default function AddComponentModal({ visible, onClose, onCreated }) {
                 if (mvErr) throw mvErr;
             }
 
-            // 4) Reset form & notify parent
-            setModel("");
-            setManufacturer("");
-            setDescription("");
-            setMinStock("0");
-            setInitialQty("0");
+            // Notify parent + close
             onCreated?.();
+            onClose?.();
         } catch (e) {
             console.error("add component error:", e);
-            const msg = e?.message || "Failed to create/update component";
+            const msg = e?.message || "Failed to create component";
             const details = e?.details ? `\n\nDetails: ${e.details}` : "";
             const hint = e?.hint ? `\n\nHint: ${e.hint}` : "";
             Alert.alert("Error", `${msg}${details}${hint}`);
@@ -89,9 +155,6 @@ export default function AddComponentModal({ visible, onClose, onCreated }) {
             setSaving(false);
         }
     }
-
-
-
 
     if (!visible) return null;
 
@@ -115,16 +178,34 @@ export default function AddComponentModal({ visible, onClose, onCreated }) {
                         contentContainerStyle={styles.scrollPadBottom}
                     >
                         <View style={styles.modalContent}>
+                            {/* Model */}
                             <View style={styles.inputGroup}>
                                 <Text style={styles.label}>Model</Text>
                                 <TextInput
-                                    style={styles.input}
+                                    style={[
+                                        styles.input,
+                                        modelError ? { borderColor: "#d9534f" } : null
+                                    ]}
                                     value={model}
                                     onChangeText={setModel}
                                     placeholder=" "
+                                    autoCapitalize="none"
+                                    autoCorrect={false}
+                                    onBlur={() => {
+                                        // force immediate validation when leaving the field
+                                        setModel(model.trim());
+                                    }}
                                 />
+                                <View style={{ minHeight: 18, marginTop: 4, flexDirection: "row", alignItems: "center" }}>
+                                    {checkingModel ? (
+                                        <ActivityIndicator size="small" />
+                                    ) : modelError ? (
+                                        <Text style={{ color: "#d9534f", fontSize: 12 }}>{modelError}</Text>
+                                    ) : null}
+                                </View>
                             </View>
 
+                            {/* Manufacturer */}
                             <View style={styles.inputGroup}>
                                 <Text style={styles.label}>Manufacturer</Text>
                                 <TextInput
@@ -135,6 +216,7 @@ export default function AddComponentModal({ visible, onClose, onCreated }) {
                                 />
                             </View>
 
+                            {/* Description */}
                             <View style={styles.inputGroup}>
                                 <Text style={styles.label}>Description</Text>
                                 <TextInput
@@ -146,6 +228,7 @@ export default function AddComponentModal({ visible, onClose, onCreated }) {
                                 />
                             </View>
 
+                            {/* Minimum Stock */}
                             <View style={styles.inputGroup}>
                                 <Text style={styles.label}>Minimum Stock</Text>
                                 <TextInput
@@ -158,6 +241,7 @@ export default function AddComponentModal({ visible, onClose, onCreated }) {
                                 />
                             </View>
 
+                            {/* Initial Quantity */}
                             <View style={styles.inputGroup}>
                                 <Text style={styles.label}>Initial Quantity</Text>
                                 <TextInput
@@ -172,7 +256,7 @@ export default function AddComponentModal({ visible, onClose, onCreated }) {
                         </View>
                     </ScrollView>
 
-                    {/* Footer (pinned) */}
+                    {/* Footer */}
                     <View style={styles.modalFooter}>
                         <View className="buttonContainer" style={styles.buttonContainer}>
                             <Pressable
@@ -183,7 +267,10 @@ export default function AddComponentModal({ visible, onClose, onCreated }) {
                                 <Text style={styles.cancelButtonText}>Cancel</Text>
                             </Pressable>
                             <Pressable
-                                style={[styles.saveButton, { flex: 1, marginLeft: 8, opacity: canSave ? 1 : 0.6 }]}
+                                style={[
+                                    styles.saveButton,
+                                    { flex: 1, marginLeft: 8, opacity: canSave ? 1 : 0.6 }
+                                ]}
                                 onPress={handleSave}
                                 disabled={!canSave}
                             >

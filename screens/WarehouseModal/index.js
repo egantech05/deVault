@@ -258,7 +258,7 @@ export default function WarehouseModal({ visible, onClose, item, onAnySave }) {
                                     <TextInput
                                         value={notes}
                                         onChangeText={setNotes}
-                                        placeholder="e.g., Manual count adjustment, damaged box, etc."
+                                        placeholder=" "
                                         placeholderTextColor="#888"
                                         multiline
                                         style={{
