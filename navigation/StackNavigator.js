@@ -4,6 +4,7 @@ import AssetTemplatesScreen from "../screens/AssetTemplatesScreen";
 import AssetsScreen from "../screens/AssetsScreen.js";
 import LogTemplatesScreen from "../screens/LogTemplatesScreen.js";
 import WarehouseScreen from "../screens/WarehouseScreen.js";
+import LinkedDocsScreen from "../screens/LinkedDocsScreen.js";
 
 const Stack = createNativeStackNavigator();
 
@@ -14,6 +15,7 @@ export default function StackNavigator() {
       <Stack.Screen name="AssetTemplates" component={AssetTemplatesScreen} />
       <Stack.Screen name="LogTemplates" component={LogTemplatesScreen} />
       <Stack.Screen name="Warehouse" component={WarehouseScreen} />
+      <Stack.Screen name="LinkedDocs" component={LinkedDocsScreen} />
     </Stack.Navigator>
   );
 }

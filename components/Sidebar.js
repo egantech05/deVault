@@ -29,6 +29,10 @@ export default function Sidebar({ isLarge, onClose }) {
           <Ionicons name="settings-outline" size={24} color={"white"} />
           <Text style={styles.navigationText}>Warehouse</Text>
         </Pressable>
+        <Pressable onPress={() => navigation.navigate("LinkedDocs")} style={styles.navigationButton}>
+          <Ionicons name="link-outline" size={24} color={"white"} />
+          <Text style={styles.navigationText}>Linked Documents</Text>
+        </Pressable>
         <Pressable onPress={() => navigation.navigate("AssetTemplates")} style={styles.navigationButton}>
           <Ionicons name="notifications-outline" size={24} color={"white"} />
           <Text style={styles.navigationText}>Schedule</Text>
@@ -55,6 +59,10 @@ export default function Sidebar({ isLarge, onClose }) {
       <Pressable onPress={() => navigation.navigate("WarehouseTemplates")} style={styles.navigationButton}>
         <Ionicons name="settings-outline" size={24} color={"white"} />
         <Text style={styles.navigationText}>Warehouse</Text>
+      </Pressable>
+      <Pressable onPress={() => navigation.navigate("LinkedDocs")} style={styles.navigationButton}>
+        <Ionicons name="link-outline" size={24} color={"white"} />
+        <Text style={styles.navigationText}>Linked Documents</Text>
       </Pressable>
       <Pressable onPress={() => navigation.navigate("AssetTemplates")} style={styles.navigationButton}>
         <Ionicons name="notifications-outline" size={24} color={"white"} />

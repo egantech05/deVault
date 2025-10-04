@@ -1,23 +1,37 @@
-import React, { useEffect, useRef, useState } from "react";
-import { View, Text, Pressable, Platform, Alert } from "react-native";
+import React, { useEffect, useRef, useState, useCallback } from "react";
+import { View, Text, Pressable, Platform, Alert, Linking } from "react-native";
 import { supabase } from "../../../lib/supabase";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
-import { Linking } from "react-native";
 import { decode } from "base64-arraybuffer";
 import { Ionicons } from "@expo/vector-icons";
 
+/** Helper: parse "bucket/path/to/file" into { bucket, path } */
+function splitStoragePath(storage_path) {
+    if (!storage_path) return { bucket: "", path: "" };
+    const [bucket, ...rest] = storage_path.split("/");
+    return { bucket, path: rest.join("/") };
+}
+
 export default function DocsTab({ asset, styles, colors }) {
+    // Existing per-asset docs
     const [docs, setDocs] = useState([]);
     const [loadingDocs, setLoadingDocs] = useState(false);
     const [uploading, setUploading] = useState(false);
+
+    // NEW: linked docs state
+    const [linkedDocs, setLinkedDocs] = useState([]);
+    const [loadingLinked, setLoadingLinked] = useState(false);
+
     const webFileInputRef = useRef(null);
 
     useEffect(() => {
         if (!asset?.id) return;
         loadDocuments(asset.id);
+        loadLinkedDocuments(asset.id);
     }, [asset?.id]);
 
+    /** Existing: load per-asset uploaded docs */
     const loadDocuments = async (assetId) => {
         if (!assetId) return;
         setLoadingDocs(true);
@@ -34,6 +48,27 @@ export default function DocsTab({ asset, styles, colors }) {
             setDocs(data || []);
         }
         setLoadingDocs(false);
+    };
+
+    /** NEW: load linked docs resolved by DB view */
+    const loadLinkedDocuments = async (assetId) => {
+        if (!assetId) return;
+        setLoadingLinked(true);
+        const { data, error } = await supabase
+            .from("v_linked_documents_for_asset")
+            .select(
+                "document_id, document_name, storage_path, mime_type, size_bytes, rule_created_at, template_id, property_id, value_raw"
+            )
+            .eq("asset_id", assetId)
+            .order("rule_created_at", { ascending: false });
+
+        if (error) {
+            console.error("loadLinkedDocuments error:", error);
+            setLinkedDocs([]);
+        } else {
+            setLinkedDocs(data || []);
+        }
+        setLoadingLinked(false);
     };
 
     const openAddDocument = async () => {
@@ -134,9 +169,7 @@ export default function DocsTab({ asset, styles, colors }) {
 
     const openDocument = async (doc) => {
         try {
-            const { data, error } = await supabase.storage
-                .from("asset-docs")
-                .createSignedUrl(doc.path, 60 * 10);
+            const { data, error } = await supabase.storage.from("asset-docs").createSignedUrl(doc.path, 60 * 10);
             if (error) throw error;
             const url = data?.signedUrl;
             if (url) Linking.openURL(url);
@@ -145,6 +178,21 @@ export default function DocsTab({ asset, styles, colors }) {
             Alert.alert("Error", "Could not open document.");
         }
     };
+
+    /** NEW: open linked doc from the documents bucket via storage_path */
+    const openLinkedDocument = useCallback(async (ld) => {
+        try {
+            const { bucket, path } = splitStoragePath(ld.storage_path); // e.g. "documents/some/folder/file.pdf"
+            if (!bucket || !path) throw new Error("Invalid storage_path");
+            const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 10);
+            if (error) throw error;
+            const url = data?.signedUrl;
+            if (url) Linking.openURL(url);
+        } catch (e) {
+            console.error("openLinkedDocument error:", e);
+            Alert.alert("Error", "Could not open linked document.");
+        }
+    }, []);
 
     const deleteDocument = async (doc) => {
         const doDelete = async () => {
@@ -177,14 +225,10 @@ export default function DocsTab({ asset, styles, colors }) {
         <View style={{ paddingTop: 4 }}>
             {/* Hidden input for web */}
             {Platform.OS === "web" && (
-                <input
-                    ref={webFileInputRef}
-                    type="file"
-                    style={{ display: "none" }}
-                    onChange={handleWebFileChange}
-                />
+                <input ref={webFileInputRef} type="file" style={{ display: "none" }} onChange={handleWebFileChange} />
             )}
 
+            {/* ===== Your original section: per-asset documents ===== */}
             <View style={styles.docsHeaderRow}>
                 <Text style={[styles.label, { marginBottom: 0 }]}>Documents</Text>
                 <Pressable
@@ -225,6 +269,43 @@ export default function DocsTab({ asset, styles, colors }) {
                                 >
                                     <Text style={[styles.docActionText, { color: "#ff4444" }]}>Delete</Text>
                                 </Pressable>
+                            </View>
+                        </View>
+                    ))}
+                </View>
+            )}
+
+            {/* Divider */}
+            <View style={{ height: 1, backgroundColor: "#eee", marginVertical: 14 }} />
+
+            {/* ===== NEW section: Linked Documents (resolved by rule) ===== */}
+            <View style={styles.docsHeaderRow}>
+                <Text style={[styles.label, { marginBottom: 0 }]}>Linked Documents</Text>
+            </View>
+
+            {loadingLinked ? (
+                <Text style={{ color: "#666", marginTop: 8 }}>Loading…</Text>
+            ) : linkedDocs.length === 0 ? (
+                <Text style={{ color: "#888", marginTop: 8 }}>No linked documents for this asset.</Text>
+            ) : (
+                <View style={{ marginTop: 12 }}>
+                    {linkedDocs.map((ld) => (
+                        <View key={`${ld.document_id}-${ld.rule_created_at}`} style={styles.docRow}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.docName} numberOfLines={1}>
+                                    {ld.document_name}
+                                </Text>
+                                <Text style={styles.docMeta}>
+                                    {(ld.mime_type || "file")} • Linked by rule • {ld.value_raw}
+                                    {ld.size_bytes ? ` • ${(Number(ld.size_bytes) / 1024).toFixed(0)} KB` : ""}
+                                </Text>
+                            </View>
+
+                            <View style={styles.docActions}>
+                                <Pressable style={styles.docActionBtn} onPress={() => openLinkedDocument(ld)}>
+                                    <Text style={styles.docActionText}>Open</Text>
+                                </Pressable>
+                                {/* No delete here — linked docs come from rules */}
                             </View>
                         </View>
                     ))}
