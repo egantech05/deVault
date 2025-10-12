@@ -1,10 +1,12 @@
-// components/header.js
-import React from "react";
+import React, { useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { commonStyles, colors } from "./Styles";
+import UserProfileDropdown from "./UserProfileDropdown";
 
 export const Header = ({ showMenuBtn, onMenuPress, title = "deVault" }) => {
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+
   return (
     <View style={styles.header}>
       {showMenuBtn ? (
@@ -19,9 +21,19 @@ export const Header = ({ showMenuBtn, onMenuPress, title = "deVault" }) => {
         <Text style={commonStyles.textTitle}>{title}</Text>
       </View>
 
-      <Pressable hitSlop={12} style={{ paddingHorizontal: 16 }} onPress={() => { /* profile action */ }}>
+      <Pressable 
+        hitSlop={12} 
+        style={{ paddingHorizontal: 16 }} 
+        onPress={() => setShowUserDropdown(true)}
+      >
         <Ionicons name="person-circle-outline" size={32} color="white" />
       </Pressable>
+
+      {/* User Profile Dropdown */}
+      <UserProfileDropdown
+        visible={showUserDropdown}
+        onClose={() => setShowUserDropdown(false)}
+      />
     </View>
   );
 };

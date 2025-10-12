@@ -5,9 +5,8 @@ import AssetsScreen from "../screens/AssetsScreen.js";
 import LogTemplatesScreen from "../screens/LogTemplatesScreen.js";
 import WarehouseScreen from "../screens/WarehouseScreen.js";
 import LinkedDocsScreen from "../screens/LinkedDocsScreen.js";
-import LoginScreen from "../screens/LoginScreen.js";
 import ResponsiveLayout from "../components/ResponsiveLayout";
-import AuthLayout from "../components/AuthLayout";
+import AuthGuard from "../components/AuthGuard";
 
 const Stack = createNativeStackNavigator();
 
@@ -41,21 +40,19 @@ const LinkedDocsScreenWithLayout = () => (
   </ResponsiveLayout>
 );
 
-const LoginScreenWithLayout = () => (
-  <AuthLayout>
-    <LoginScreen />
-  </AuthLayout>
-);
+
 
 export default function StackNavigator() {
   return (
-    <Stack.Navigator initialRouteName="Login" screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Assets" component={AssetsScreenWithLayout} />
-      <Stack.Screen name="AssetTemplates" component={AssetTemplatesScreenWithLayout} />
-      <Stack.Screen name="LogTemplates" component={LogTemplatesScreenWithLayout} />
-      <Stack.Screen name="Warehouse" component={WarehouseScreenWithLayout} />
-      <Stack.Screen name="LinkedDocs" component={LinkedDocsScreenWithLayout} />
-      <Stack.Screen name="Login" component={LoginScreenWithLayout} />
-    </Stack.Navigator>
+    <AuthGuard>
+      <Stack.Navigator initialRouteName="Assets" screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="Assets" component={AssetsScreenWithLayout} />
+        <Stack.Screen name="AssetTemplates" component={AssetTemplatesScreenWithLayout} />
+        <Stack.Screen name="LogTemplates" component={LogTemplatesScreenWithLayout} />
+        <Stack.Screen name="Warehouse" component={WarehouseScreenWithLayout} />
+        <Stack.Screen name="LinkedDocs" component={LinkedDocsScreenWithLayout} />
+        
+      </Stack.Navigator>
+    </AuthGuard>
   );
 }

@@ -13,10 +13,11 @@ import {
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { colors, commonStyles } from '../components/Styles';
-import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../contexts/AuthContext';
 import SignUpModal from './LoginScreen/SignUpModal';
 
 export default function LoginScreen({ navigation }) {
+  const { user } = useAuth();   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -37,10 +38,7 @@ export default function LoginScreen({ navigation }) {
       });
 
       if (error) {
-        Alert.alert('Login Failed', error.message);
-      } else {
-        // Navigation will be handled by auth state change
-        Alert.alert('Success', 'Logged in successfully!');
+        Alert.alert('Login Failed', error.message); 
       }
     } catch (error) {
       Alert.alert('Error', 'An unexpected error occurred');

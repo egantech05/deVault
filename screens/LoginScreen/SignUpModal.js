@@ -9,7 +9,6 @@ import {
   Modal,
   ScrollView,
   ActivityIndicator,
-  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
@@ -27,6 +26,7 @@ export default function SignUpModal({ visible, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const resetForm = () => {
     setFormData({
@@ -64,20 +64,24 @@ export default function SignUpModal({ visible, onClose, onSuccess }) {
 
   const checkEmailExists = async (email) => {
     try {
-      // Try to sign in with a dummy password to check if email exists
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password: 'dummy-password-to-check-email'
-      });
+      // Use a more reliable method to check email existence
+      const { data, error } = await supabase.auth.admin.getUserByEmail(email.trim());
       
-      // If error is "Invalid login credentials", email exists but password is wrong
-      // If error is "User not found", email doesn't exist
-      if (error && error.message.includes('Invalid login credentials')) {
-        return true; // Email exists
+      // If we get data, email exists
+      if (data && data.user) {
+        return true;
       }
-      return false; // Email doesn't exist
+      
+      // If error is "User not found", email doesn't exist
+      if (error && error.message.includes('User not found')) {
+        return false;
+      }
+      
+      // For other errors, assume email doesn't exist to allow signup
+      return false;
     } catch (error) {
-      return false; // Assume email doesn't exist on error
+      // If there's any error, assume email doesn't exist
+      return false;
     }
   };
 
@@ -131,7 +135,10 @@ export default function SignUpModal({ visible, onClose, onSuccess }) {
     
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signUp({
+      console.log('🚀 Starting signup process...');
+      console.log('📧 Email:', formData.email);
+      
+      const { data, error } = await supabase.auth.signUp({
         email: formData.email.trim(),
         password: formData.password,
         options: {
@@ -141,33 +148,39 @@ export default function SignUpModal({ visible, onClose, onSuccess }) {
           }
         }
       });
-
+  
+      console.log('📊 Signup response - data:', data);
+      console.log('📊 Signup response - error:', error);
+      console.log('📊 User created:', data?.user);
+      console.log('📊 Session:', data?.session);
+  
       if (error) {
+        console.error('❌ Signup error:', error);
         if (error.message.includes('already registered') || error.message.includes('User already registered')) {
           Alert.alert('Sign Up Failed', 'This email is already registered. Please use a different email or try logging in.');
         } else {
           Alert.alert('Sign Up Failed', error.message);
         }
       } else {
-        Alert.alert(
-          'Success!',
-          'Please check your email for a confirmation link to complete your registration.',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                handleClose();
-                onSuccess?.();
-              }
-            }
-          ]
-        );
+        console.log('✅ Signup successful!');
+        console.log('✅ User ID:', data?.user?.id);
+        console.log('✅ Email confirmed:', data?.user?.email_confirmed_at);
+        
+        // Show custom success modal instead of Alert.alert
+        setShowSuccessModal(true);
       }
     } catch (error) {
+      console.error('💥 Signup catch error:', error);
       Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSuccessClose = () => {
+    setShowSuccessModal(false);
+    handleClose();
+    onSuccess?.();
   };
 
   const updateFormData = (field, value) => {
@@ -348,6 +361,37 @@ export default function SignUpModal({ visible, onClose, onSuccess }) {
           </View>
         </View>
       </View>
+
+
+
+        {/* Success Modal */}
+    <Modal
+      visible={showSuccessModal}
+      transparent
+      animationType="fade"
+      onRequestClose={handleSuccessClose}
+    >
+      <View style={styles.successModalOverlay}>
+        <View style={styles.successModal}>
+          <View style={styles.successIcon}>
+            <Ionicons name="checkmark-circle" size={64} color="#28a745" />
+          </View>
+          <Text style={styles.successTitle}>Account Created Successfully! 🎉</Text>
+          <Text style={styles.successMessage}>
+            Welcome to deVault, {formData.firstName}!
+          </Text>
+          <Text style={styles.successSubMessage}>
+            Please check your email ({formData.email}) for a confirmation link to activate your account.
+          </Text>
+          <TouchableOpacity 
+            style={styles.successButton} 
+            onPress={handleSuccessClose}
+          >
+            <Text style={styles.successButtonText}>Got it!</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
     </Modal>
   );
 }
@@ -493,7 +537,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 12,
     marginLeft: 8,
-    borderRadius: 8,
+    borderRadius: 8,    
     backgroundColor: colors.brand,
     alignItems: 'center',
     justifyContent: 'center',
@@ -507,5 +551,63 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: 'bold',
     fontSize: 16,
+  },
+
+  successModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  successModal: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 24,
+    margin: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  successIcon: {
+    marginBottom: 16,
+  },
+  successTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.primary,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  successMessage: {
+    fontSize: 16,
+    color: colors.primary,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  successSubMessage: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  successButton: {
+    backgroundColor: colors.brand,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    minWidth: 120,
+  },
+  successButtonText: {
+    color: colors.primary,
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
 });
