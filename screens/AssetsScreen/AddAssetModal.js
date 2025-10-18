@@ -9,6 +9,22 @@ import styles from "./styles";
 import PropertyField from "./components/PropertyField";
 import { useDatabase } from "../../contexts/DatabaseContext";
 
+const webSelectStyle = {
+  width: "100%",
+  height: 40,
+  paddingLeft: 12,
+  paddingRight: 36,
+  fontSize: 16,
+  border: "none",
+  outline: "none",
+  backgroundColor: "transparent",
+  color: colors.primary,
+  boxShadow: "none",
+  cursor: "pointer",
+  WebkitAppearance: "none",
+  MozAppearance: "none",
+};
+
 export default function AddAssetModal({ visible, onClose, onCreate }) {
   const { activeDatabaseId, openCreateModal } = useDatabase();
 
@@ -151,22 +167,27 @@ export default function AddAssetModal({ visible, onClose, onCreate }) {
 
                 {Platform.OS === "web" ? (
                   <View style={styles.pickerWrapper}>
-                    <select
-                      value={selectedTemplateId}
-                      onChange={(e) => onTemplateChange(e.target.value)}
-                      style={{ width: "100%", height: 40, border: "none", background: "transparent" }}
-                      aria-label="Template"
-                      disabled={loadingTemplates}
-                    >
-                      <option value="">
-                        {loadingTemplates ? "Loading templates…" : "Select a template"}
-                      </option>
-                      {assetTemplates.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.name}
+                    <React.Fragment>
+                      <select
+                        value={selectedTemplateId}
+                        onChange={(e) => onTemplateChange(e.target.value)}
+                        style={webSelectStyle}
+                        aria-label="Template"
+                        disabled={loadingTemplates}
+                      >
+                        <option value="">
+                          {loadingTemplates ? "Loading templates…" : "Select a template"}
                         </option>
-                      ))}
-                    </select>
+                        {assetTemplates.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name}
+                          </option>
+                        ))}
+                      </select>
+                      <View pointerEvents="none" style={styles.webPickerIcon}>
+                        <Ionicons name="chevron-down" size={16} color="#555" />
+                      </View>
+                    </React.Fragment>
                   </View>
                 ) : (
                   <View style={styles.pickerWrapper}>

@@ -35,6 +35,9 @@ export default function AssetsScreen() {
   const cardSize = getCardSize(width);
   const addIconSize = 0.5 * cardSize;
 
+  const numColumns = useMemo(() => Math.max(1, Math.floor(width / (cardSize + 16))), [width, cardSize]);
+  const listKey = useMemo(() => `assets-cols-${numColumns}`, [numColumns]);
+
   const filteredAssets = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return assets;
@@ -52,8 +55,6 @@ export default function AssetsScreen() {
   );
 
   // Try to estimate columns so the cards look similar to your old wrap layout
-  const numColumns = Math.max(1, Math.floor(width / (cardSize + 16)));
-
   const openAssetDetails = (card) => {
     setSelectedAsset({
       id: card.id,
@@ -121,6 +122,7 @@ export default function AssetsScreen() {
       </View>
 
       <FlatList
+        key={listKey}
         data={listData}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}

@@ -56,8 +56,9 @@ export default function AssetTemplatesScreen() {
   useEffect(() => { loadTemplates(); }, [loadTemplates]);
 
   const cardSize = getCardSize(width);
-  const addIconSize = 0.5 * cardSize;
-  const numColumns = Math.max(1, Math.floor(width / (cardSize + 16)));
+
+  const numColumns = useMemo(() => Math.max(1, Math.floor(width / (cardSize + 16))), [width, cardSize]);
+  const listKey = useMemo(() => `asset-templates-cols-${numColumns}`, [numColumns]);
 
   const nextIdRef = useRef(2);
   const addProperty = () => {
@@ -218,7 +219,6 @@ export default function AssetTemplatesScreen() {
       </View>
     );
   }
-
   return (
     <View style={commonStyles.contentContainer}>
       <Text style={commonStyles.textPrimary}>Asset Templates</Text>
@@ -235,6 +235,7 @@ export default function AssetTemplatesScreen() {
       </View>
 
       <FlatList
+        key={listKey}
         data={[{ _key: "__add" }, ...filteredTemplates]}
         keyExtractor={(item) => item._key || item.id}
         numColumns={numColumns}
@@ -258,8 +259,7 @@ export default function AssetTemplatesScreen() {
               onPress={() => openDetails(item)}
             >
               <View style={styles.cardHeader}>
-                <Ionicons name="document-text-outline" size={18} color="#f9fafb" />
-                <Text style={styles.cardMeta}>{item.assetCount ?? 0} assets</Text>
+                <Text style={styles.cardMeta}>{item.assetCount ?? 0} </Text>
               </View>
               <AutoShrinkText
                 style={styles.cardTitle}
@@ -308,6 +308,7 @@ export default function AssetTemplatesScreen() {
                   onChange={(field, value) => updateProperty(prop.id, field, value)}
                   onRemove={() => removeProperty(prop.id)}
                   canRemove={properties.length > 1}
+                  showDefaultValue={false}
                 />
               ))}
 
@@ -406,32 +407,30 @@ const styles = StyleSheet.create({
   addCard: {
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.25)",
-    borderStyle: "dashed",
-    borderRadius: 24,
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: colors.secondary,
+    padding: 12,
+    borderRadius: 13,
     margin: 8,
   },
   displayCard: {
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderRadius: 24,
-    padding: 18,
+    backgroundColor: "white",
+    borderRadius: 13,
+    padding: 12,
     justifyContent: "space-between",
     margin: 8,
   },
   cardHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "flex-end",
     alignItems: "center",
   },
   cardMeta: {
-    color: "#d1d5db",
-    fontSize: 12,
+    color: colors.primary,
+    fontSize: 16,
     fontWeight: "600",
   },
   cardTitle: {
-    color: "white",
+    color: colors.primary,
     fontWeight: "700",
   },
 

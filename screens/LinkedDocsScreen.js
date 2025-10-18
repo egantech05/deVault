@@ -18,6 +18,31 @@ import AddLinkedDocModal from "./LinkedDocumentsScreen/AddLinkedDocModal";
 import { supabase } from "../lib/supabase";
 import { useDatabase } from "../contexts/DatabaseContext";
 
+const linkedDocRowBaseStyle = {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: "#eee",
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginVertical: 6,
+    backgroundColor: "#fafafa",
+};
+
+const linkedDocRowShadowStyle = Platform.select({
+    web: {
+        boxShadow: "0px 1px 4px rgba(0,0,0,0.05)",
+    },
+    default: {
+        shadowColor: "#000",
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
+        shadowOffset: { width: 0, height: 1 },
+    },
+});
+
 // Helper to split "linkedDocs/12345-file.pdf" into { bucket, path }
 function parseStoragePath(storage_path = "") {
     const [bucket, ...rest] = String(storage_path).split("/");
@@ -124,22 +149,7 @@ export default function LinkedDocumentsScreen() {
                         return (
                             <View
                                 key={r.id}
-                                style={{
-                                    flexDirection: "row",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
-                                    borderWidth: 1,
-                                    borderColor: "#eee",
-                                    borderRadius: 12,
-                                    paddingVertical: 10,
-                                    paddingHorizontal: 14,
-                                    marginVertical: 6,
-                                    backgroundColor: "#fafafa",
-                                    shadowColor: "#000",
-                                    shadowOpacity: 0.05,
-                                    shadowRadius: 3,
-                                    shadowOffset: { width: 0, height: 1 },
-                                }}
+                                style={[linkedDocRowBaseStyle, linkedDocRowShadowStyle]}
                             >
                                 {/* Left side text */}
                                 <View style={{ flex: 1, paddingRight: 10 }}>

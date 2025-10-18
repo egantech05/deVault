@@ -1,5 +1,5 @@
 // screens/WarehouseModal/index.js
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Modal,
   View,
@@ -20,6 +20,19 @@ import { useDatabase } from "../../contexts/DatabaseContext";
 
 const TABS = { INFO: "Info", HIST: "Historical" };
 
+const modalCardShadowStyle = Platform.select({
+  web: {
+    boxShadow: "0px 8px 20px rgba(0,0,0,0.1)",
+  },
+  default: {
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+  },
+});
+
 export default function WarehouseModal({ visible, onClose, item, onAnySave }) {
   const [tab, setTab] = useState(TABS.INFO);
   const [qty, setQty] = useState("0");
@@ -28,11 +41,18 @@ export default function WarehouseModal({ visible, onClose, item, onAnySave }) {
 
   const [deleteVisible, setDeleteVisible] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [currentItem, setCurrentItem] = useState(item);
 
   const { activeDatabaseId, openCreateModal } = useDatabase();
 
-  const title = useMemo(() => item?.model || "Component", [item?.model]);
-  if (!visible || !item || !activeDatabaseId) return null;
+  useEffect(() => {
+    setCurrentItem(item);
+    setDeleteVisible(false);
+    setDeleting(false);
+  }, [item]);
+
+  const title = useMemo(() => currentItem?.model || "Component", [currentItem?.model]);
+  if (!visible || !currentItem || !activeDatabaseId) return null;
 
   const qtyNum = Number.parseInt(qty || "0", 10) || 0;
 
@@ -64,7 +84,7 @@ export default function WarehouseModal({ visible, onClose, item, onAnySave }) {
         .insert([
           {
             database_id: activeDatabaseId,
-            component_id: item.id,
+            component_id: currentItem.id,
             qty_delta: delta,
             notes: notes?.trim() || null,
           },
@@ -84,6 +104,11 @@ export default function WarehouseModal({ visible, onClose, item, onAnySave }) {
     setQty(String(next));
   };
 
+  const handleInfoSaved = (updates) => {
+    setCurrentItem((prev) => (prev ? { ...prev, ...updates } : prev));
+    onAnySave?.();
+  };
+
   function openDeleteConfirm() {
     setDeleteVisible(true);
   }
@@ -95,14 +120,14 @@ export default function WarehouseModal({ visible, onClose, item, onAnySave }) {
       const { error: movesErr } = await supabase
         .from("inventory_movements")
         .delete()
-        .eq("component_id", item.id)
+        .eq("component_id", currentItem.id)
         .eq("database_id", activeDatabaseId);
       if (movesErr) throw movesErr;
 
       const { error: compErr } = await supabase
         .from("components_catalog")
         .delete()
-        .eq("id", item.id)
+        .eq("id", currentItem.id)
         .eq("database_id", activeDatabaseId);
       if (compErr) throw compErr;
 
@@ -127,16 +152,34 @@ export default function WarehouseModal({ visible, onClose, item, onAnySave }) {
             </Pressable>
           </View>
 
-          <View style={styles.tabsBar}>
-            {[TABS.INFO, TABS.HIST].map((t) => (
-              <Pressable
-                key={t}
-                onPress={() => setTab(t)}
-                style={[styles.tabItem, tab === t && styles.tabItemActive]}
-              >
-                <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>{t}</Text>
-              </Pressable>
-            ))}
+          <View style={styles.tabsRow}>
+            <View style={styles.tabsBar}>
+              {[TABS.INFO, TABS.HIST].map((t) => (
+                <Pressable
+                  key={t}
+                  onPress={() => setTab(t)}
+                  style={[styles.tabItem, tab === t && styles.tabItemActive]}
+                >
+                  <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>{t}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Pressable
+              onPress={openDeleteConfirm}
+              disabled={deleting}
+              accessibilityLabel={deleting ? "Deleting component" : "Delete component"}
+              style={({ pressed }) => [
+                styles.deleteInlineBtn,
+                pressed && !deleting && { opacity: 0.85 },
+                deleting && { opacity: 0.6 },
+              ]}
+            >
+              {deleting ? (
+                <Text style={styles.deleteInlineText}>Deleting…</Text>
+              ) : (
+                <Ionicons name="trash-outline" size={18} color="#dc2626" />
+              )}
+            </Pressable>
           </View>
 
           <ScrollView
@@ -147,9 +190,9 @@ export default function WarehouseModal({ visible, onClose, item, onAnySave }) {
           >
             <View style={styles.modalContent}>
               {tab === TABS.INFO ? (
-                <InfoTab item={item} onDelete={openDeleteConfirm} />
+                <InfoTab item={currentItem} onSaved={handleInfoSaved} />
               ) : (
-                <HistoricalTab item={item} />
+                <HistoricalTab item={currentItem} />
               )}
             </View>
           </ScrollView>
@@ -247,17 +290,16 @@ export default function WarehouseModal({ visible, onClose, item, onAnySave }) {
               ]}
             >
               <View
-                style={{
-                  width: 420,
-                  maxWidth: "92%",
-                  borderRadius: 16,
-                  backgroundColor: "#fff",
-                  padding: 16,
-                  shadowColor: "#000",
-                  shadowOpacity: 0.1,
-                  shadowRadius: 8,
-                  elevation: 8,
-                }}
+                style={[
+                  {
+                    width: 420,
+                    maxWidth: "92%",
+                    borderRadius: 16,
+                    backgroundColor: "#fff",
+                    padding: 16,
+                  },
+                  modalCardShadowStyle,
+                ]}
               >
                 <Text style={{ fontWeight: "700", fontSize: 16, marginBottom: 12 }}>
                   Notes (optional)
@@ -278,8 +320,23 @@ export default function WarehouseModal({ visible, onClose, item, onAnySave }) {
                   }}
                 />
 
-                <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 12, gap: 10 }}>
-                  <Pressable onPress={() => setNotesVisible(false)}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "flex-end",
+                    alignItems: "center",
+                    marginTop: 12,
+                    gap: 10,
+                  }}
+                >
+                  <Pressable
+                    onPress={() => setNotesVisible(false)}
+                    style={{
+                      paddingHorizontal: 16,
+                      paddingVertical: 10,
+                      borderRadius: 10,
+                    }}
+                  >
                     <Text style={{ color: "#6b7280", fontWeight: "600" }}>Cancel</Text>
                   </Pressable>
                   <Pressable
@@ -311,17 +368,16 @@ export default function WarehouseModal({ visible, onClose, item, onAnySave }) {
               ]}
             >
               <View
-                style={{
-                  width: 360,
-                  maxWidth: "92%",
-                  borderRadius: 16,
-                  backgroundColor: "#fff",
-                  padding: 20,
-                  shadowColor: "#000",
-                  shadowOpacity: 0.1,
-                  shadowRadius: 8,
-                  elevation: 8,
-                }}
+                style={[
+                  {
+                    width: 360,
+                    maxWidth: "92%",
+                    borderRadius: 16,
+                    backgroundColor: "#fff",
+                    padding: 20,
+                  },
+                  modalCardShadowStyle,
+                ]}
               >
                 <Text style={{ fontWeight: "700", fontSize: 18, marginBottom: 10 }}>
                   Delete Component?

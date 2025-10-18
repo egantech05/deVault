@@ -76,15 +76,27 @@ export default function AssetDetailsModal({ visible, onClose, asset, onAnySave }
 
                     {/* Tabs */}
                     <View style={styles.tabsBar}>
-                        {[TABS.INFO, TABS.LOGS, TABS.DOCS, TABS.COMPS].map((t) => (
+                        <View style={styles.tabsList}>
+                            {[TABS.INFO, TABS.LOGS, TABS.DOCS, TABS.COMPS].map((t) => (
+                                <Pressable
+                                    key={t}
+                                    onPress={() => guardedSwitchTab(t)}
+                                    style={[styles.tabItem, tab === t && styles.tabItemActive]}
+                                >
+                                    <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>{t}</Text>
+                                </Pressable>
+                            ))}
+                        </View>
+
+                        {tab === TABS.INFO && (
                             <Pressable
-                                key={t}
-                                onPress={() => guardedSwitchTab(t)}
-                                style={[styles.tabItem, tab === t && styles.tabItemActive]}
+                                onPress={() => infoRef.current?.remove?.()}
+                                style={styles.tabActionButton}
+                                hitSlop={8}
                             >
-                                <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>{t}</Text>
+                                <Ionicons name="trash" size={20} color="#d9534f" />
                             </Pressable>
-                        ))}
+                        )}
                     </View>
 
                     {/* Content */}
@@ -121,44 +133,33 @@ export default function AssetDetailsModal({ visible, onClose, asset, onAnySave }
                         <View style={[styles.buttonContainer, { alignItems: "stretch" }]}>
 
                             {tab === TABS.INFO ? (
-                                <>
-                                    {/* Left: Delete (Info tab only) */}
-                                    <Pressable
-                                        style={[styles.cancelButton, { flex: 1, marginRight: 8 }]}
-                                        onPress={() => infoRef.current?.remove?.()}
-                                    >
-                                        <Text style={styles.cancelButtonText}>Delete Asset</Text>
-                                    </Pressable>
+                                isInfoEditing ? (
+                                    <View style={{ flex: 1, flexDirection: "row" }}>
+                                        <Pressable
+                                            style={[styles.cancelButton, { flex: 1, marginRight: 8 }]}
+                                            onPress={() => infoRef.current?.cancelEdit?.()}
+                                        >
+                                            <Text style={styles.cancelButtonText}>Cancel</Text>
+                                        </Pressable>
 
-                                    {/* Right: Edit OR (Cancel + Save) */}
-                                    {isInfoEditing ? (
-                                        <View style={{ flex: 1, flexDirection: "row" }}>
-                                            <Pressable
-                                                style={[styles.cancelButton, { flex: 1, marginRight: 8 }]}
-                                                onPress={() => infoRef.current?.cancelEdit?.()}
-                                            >
-                                                <Text style={styles.cancelButtonText}>Cancel</Text>
-                                            </Pressable>
-
-                                            <Pressable
-                                                style={[styles.saveButton, { flex: 1 }]}
-                                                disabled={isInfoSaving}
-                                                onPress={() => infoRef.current?.save?.()}
-                                            >
-                                                <Text style={styles.saveButtonText}>
-                                                    {isInfoSaving ? "Saving..." : "Save Changes"}
-                                                </Text>
-                                            </Pressable>
-                                        </View>
-                                    ) : (
                                         <Pressable
                                             style={[styles.saveButton, { flex: 1 }]}
-                                            onPress={() => infoRef.current?.beginEdit?.()}
+                                            disabled={isInfoSaving}
+                                            onPress={() => infoRef.current?.save?.()}
                                         >
-                                            <Text style={styles.saveButtonText}>Edit</Text>
+                                            <Text style={styles.saveButtonText}>
+                                                {isInfoSaving ? "Saving..." : "Save Changes"}
+                                            </Text>
                                         </Pressable>
-                                    )}
-                                </>
+                                    </View>
+                                ) : (
+                                    <Pressable
+                                        style={[styles.saveButton, { flex: 1, marginLeft: 0 }]}
+                                        onPress={() => infoRef.current?.beginEdit?.()}
+                                    >
+                                        <Text style={styles.saveButtonText}>Edit</Text>
+                                    </Pressable>
+                                )
                             ) : (
                                 <>
                                     <View style={{ flex: 1, marginRight: 8 }} />

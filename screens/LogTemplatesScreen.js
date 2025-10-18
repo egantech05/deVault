@@ -83,7 +83,8 @@ export default function LogTemplatesScreen() {
   // Layout
   const cardSize = getCardSize(width);
   const addIconSize = 0.5 * cardSize;
-  const numColumns = Math.max(1, Math.floor(width / (cardSize + 16)));
+  const numColumns = useMemo(() => Math.max(1, Math.floor(width / (cardSize + 16))), [width, cardSize]);
+  const listKey = useMemo(() => `log-templates-cols-${numColumns}`, [numColumns]);
   const rowStyle = { justifyContent: "center" };
 
   // Create-modal helpers
@@ -307,6 +308,7 @@ export default function LogTemplatesScreen() {
       </View>
 
       <FlatList
+        key={listKey}
         data={mainListData}
         keyExtractor={(item) =>
           item._type === "add" ? "__add__" : String(item.id)

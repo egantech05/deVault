@@ -119,11 +119,17 @@ const styles = StyleSheet.create({
     },
     modalTitle: { fontSize: 18, fontWeight: "bold", color: "white" },
 
-    tabsBar: {
+    tabsRow: {
         flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
         borderBottomWidth: 1,
         borderBottomColor: "#e0e0e0",
         backgroundColor: "#fafafa",
+        paddingHorizontal: 16,
+    },
+    tabsBar: {
+        flexDirection: "row",
     },
     tabItem: { paddingHorizontal: 16, paddingVertical: 12 },
     tabItemActive: { borderBottomWidth: 3, borderBottomColor: colors.primary },
@@ -164,6 +170,19 @@ const styles = StyleSheet.create({
         justifyContent: "center",
     },
     saveButtonText: { textAlign: "center", color: "white", fontWeight: "bold" },
+
+    deleteInlineBtn: {
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: "#dc2626",
+        paddingVertical: 8,
+        paddingHorizontal: 14,
+        backgroundColor: "white",
+        alignItems: "center",
+        justifyContent: "center",
+        marginLeft: 12,
+    },
+    deleteInlineText: { color: "#dc2626", fontWeight: "700" },
 
     // Shared input look
     inputGroup: { marginBottom: 20 },

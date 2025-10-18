@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, Pressable, Alert, Modal, ScrollView, TextInput } from "react-native";
+import { View, Text, Pressable, Alert, Modal, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import styles from "../styles";
 import { colors } from "../../../components/Styles";
+import PropertyField from "../components/PropertyField";
 import {
   fetchLogTemplates,
   fetchLogs,
@@ -55,6 +56,18 @@ export default function LogsTab({ asset }) {
   const [selectedLogTemplate, setSelectedLogTemplate] = useState(null);
   const [logFields, setLogFields] = useState([]);
   const [savingLog, setSavingLog] = useState(false);
+
+  const closeLogModal = useCallback(() => {
+    setLogModalVisible(false);
+    setLogForModal(null);
+    setLogEditing(false);
+    setLogEditFields([]);
+    setShowTemplateChooser(false);
+    setSelectedLogTemplate(null);
+    setLogFields([]);
+  }, []);
+
+  const detailFields = useMemo(() => getOrderedFieldsForModal(logForModal), [logForModal]);
 
   const ensureDatabaseSelected = useCallback(() => {
     if (!activeDatabaseId) {
@@ -200,10 +213,7 @@ export default function LogsTab({ asset }) {
         ...prev,
       ]);
 
-      setLogModalVisible(false);
-      setShowTemplateChooser(false);
-      setSelectedLogTemplate(null);
-      setLogFields([]);
+      closeLogModal();
       Alert.alert("Success", "Log saved.");
     } catch (e) {
       console.error("saveNewLog error:", e);
@@ -219,6 +229,9 @@ export default function LogsTab({ asset }) {
       const { error } = await deleteLogById(activeDatabaseId, logId);
       if (error) throw error;
       setLogs((prev) => prev.filter((l) => l.id !== logId));
+      if (logForModal?.id === logId) {
+        closeLogModal();
+      }
       Alert.alert("Deleted", "Log removed.");
     } catch (e) {
       console.error("delete log error:", e);
@@ -228,8 +241,7 @@ export default function LogsTab({ asset }) {
 
   const beginEditFromModal = () => {
     if (!logForModal) return;
-    const fields = getOrderedFieldsForModal(logForModal);
-    setLogEditFields(fields);
+    setLogEditFields(detailFields.map((f) => ({ ...f })));
     setLogEditing(true);
   };
 
@@ -278,10 +290,11 @@ export default function LogsTab({ asset }) {
               fields_snapshot: data.fields_snapshot || prev.fields_snapshot || [],
               created_at: data.created_at,
               template_id: data.template_id,
-            }
+          }
           : prev
       );
 
+      setLogEditFields([]);
       setLogEditing(false);
       Alert.alert("Success", "Log updated.");
     } catch (e) {
@@ -317,48 +330,53 @@ export default function LogsTab({ asset }) {
           const more = entries.length - visible.length;
 
           return (
-            <Pressable
-              key={item.id}
-              style={styles.logRow}
-              onPress={() => {
-                setLogForModal(item);
-                setLogEditing(false);
-                setLogEditFields([]);
-                setLogModalVisible(true);
-              }}
-            >
-              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                <Text style={styles.logRowTitle}>{item.typeName}</Text>
-                <Text style={styles.logRowTime}>{new Date(item.created_at).toLocaleString()}</Text>
-              </View>
-
-              <View style={styles.logValuePills}>
-                {visible.map(([k, v]) => (
-                  <View key={k} style={styles.valuePill}>
-                    <Text style={styles.valuePillText}>
-                      {k}: {String(v ?? "")}
-                    </Text>
-                  </View>
-                ))}
-                {more > 0 && (
-                  <View style={[styles.valuePill, { opacity: 0.7 }]}>
-                    <Text style={styles.valuePillText}>+{more} more</Text>
-                  </View>
-                )}
-              </View>
-
+            <View key={item.id} style={styles.logRow}>
               <Pressable
-                style={styles.deleteLogButton}
-                onPress={() =>
-                  Alert.alert("Delete Log", "Remove this log entry?", [
-                    { text: "Cancel", style: "cancel" },
-                    { text: "Delete", style: "destructive", onPress: () => handleDeleteLog(item.id) },
-                  ])
-                }
+                style={styles.logRowContent}
+                onPress={() => {
+                  setLogForModal(item);
+                  setLogEditing(false);
+                  setLogEditFields([]);
+                  setShowTemplateChooser(false);
+                  setSelectedLogTemplate(null);
+                  setLogFields([]);
+                  setLogModalVisible(true);
+                }}
               >
-                <Ionicons name="trash-outline" size={18} color="#ff5555" />
+                <Text style={styles.logRowTitle}>{item.typeName}</Text>
+
+                <View style={styles.logValuePills}>
+                  {visible.map(([k, v]) => (
+                    <View key={k} style={styles.valuePill}>
+                      <Text style={styles.valuePillText}>
+                        {k}: {String(v ?? "")}
+                      </Text>
+                    </View>
+                  ))}
+                  {more > 0 && (
+                    <View style={[styles.valuePill, { opacity: 0.7 }]}>
+                      <Text style={styles.valuePillText}>+{more} more</Text>
+                    </View>
+                  )}
+                </View>
               </Pressable>
-            </Pressable>
+
+              <View style={styles.logRowActionColumn}>
+                <Text style={styles.logRowTime}>{new Date(item.created_at).toLocaleString()}</Text>
+                <Pressable
+                  style={styles.deleteLogButton}
+                  hitSlop={8}
+                  onPress={() =>
+                    Alert.alert("Delete Log", "Remove this log entry?", [
+                      { text: "Cancel", style: "cancel" },
+                      { text: "Delete", style: "destructive", onPress: () => handleDeleteLog(item.id) },
+                    ])
+                  }
+                >
+                  <Ionicons name="trash-outline" size={18} color="#ff5555" />
+                </Pressable>
+              </View>
+            </View>
           );
         })}
 
@@ -380,7 +398,7 @@ export default function LogsTab({ asset }) {
         visible={logModalVisible}
         transparent
         animationType="fade"
-        onRequestClose={() => setLogModalVisible(false)}
+        onRequestClose={closeLogModal}
       >
         <View style={styles.modalOverlay}>
           <View style={[styles.modal, { height: "60%" }]}>
@@ -388,109 +406,98 @@ export default function LogsTab({ asset }) {
               <Text style={styles.modalTitle}>
                 {logForModal ? logForModal.typeName : "New Log"}
               </Text>
-              <Pressable onPress={() => setLogModalVisible(false)}>
+              <Pressable onPress={closeLogModal}>
                 <Ionicons name="close" size={24} color={colors.brand} />
               </Pressable>
             </View>
 
             <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false}>
               <View style={styles.modalContent}>
-                {!logForModal && showTemplateChooser && (
-                  <View>
-                    <Text style={[styles.label, { marginBottom: 8 }]}>Choose a template</Text>
-                    {loadingLogTemplates ? (
-                      <Text style={{ color: "#666" }}>Loading templates…</Text>
-                    ) : logTemplates.length ? (
-                      logTemplates.map((tpl) => (
-                        <Pressable
-                          key={tpl.id}
-                          style={styles.templateCard}
-                          onPress={() => chooseLogTemplate(tpl)}
-                        >
-                          <Text style={styles.templateCardTitle}>{tpl.name}</Text>
-                        </Pressable>
-                      ))
-                    ) : (
-                      <Text style={{ color: "#888" }}>No log templates yet.</Text>
-                    )}
-                  </View>
-                )}
-
-                {!!selectedLogTemplate && (
-                  <>
-                    <Text style={[styles.label, { marginBottom: 8 }]}>
-                      {selectedLogTemplate?.name}
-                    </Text>
-                    {logFields.map((f) => (
-                      <View key={f.id} style={styles.propertyContainer}>
+                {logForModal ? (
+                  logEditing ? (
+                    logEditFields.map((f, idx) => (
+                      <View key={`${f.id}-${idx}`} style={styles.propertyContainer}>
                         <Text style={{ marginBottom: 6, color: colors.primary, fontWeight: "600" }}>
                           {f.name}
                         </Text>
-                        <TextInput
-                          style={styles.input}
-                          value={String(f.value ?? "")}
-                          onChangeText={(v) =>
-                            setLogFields((prev) =>
-                              prev.map((x) => (x.id === f.id ? { ...x, value: v } : x))
+                        <PropertyField
+                          type={f.property_type}
+                          value={f.value}
+                          onChange={(val) =>
+                            setLogEditFields((prev) =>
+                              prev.map((x) => (x.id === f.id ? { ...x, value: val } : x))
                             )
                           }
+                          style={styles.input}
                         />
                       </View>
-                    ))}
-                  </>
-                )}
-
-                {logForModal && (
+                    ))
+                  ) : detailFields.length ? (
+                    detailFields.map((f, idx) => (
+                      <View key={`${f.id}-${idx}`} style={styles.propertyContainer}>
+                        <Text style={{ marginBottom: 6, color: colors.primary, fontWeight: "600" }}>
+                          {f.name}
+                        </Text>
+                        <PropertyField
+                          type={f.property_type}
+                          value={f.value}
+                          editable={false}
+                          readOnly
+                          disabled
+                          style={[styles.input, styles.readonlyInput]}
+                        />
+                      </View>
+                    ))
+                  ) : (
+                    <Text style={{ color: "#888" }}>No values recorded for this log.</Text>
+                  )
+                ) : (
                   <>
-                    {!logEditing ? (
-                      <Pressable style={styles.primaryChip} onPress={beginEditFromModal}>
-                        <Ionicons name="create-outline" size={16} color="white" />
-                        <Text style={styles.primaryChipText}>Edit Log</Text>
-                      </Pressable>
-                    ) : (
+                    {showTemplateChooser && (
+                      <View>
+                        <Text style={[styles.label, { marginBottom: 8 }]}>Choose a template</Text>
+                        {loadingLogTemplates ? (
+                          <Text style={{ color: "#666" }}>Loading templates…</Text>
+                        ) : logTemplates.length ? (
+                          logTemplates.map((tpl) => (
+                            <Pressable
+                              key={tpl.id}
+                              style={styles.templateCard}
+                              onPress={() => chooseLogTemplate(tpl)}
+                            >
+                              <Text style={styles.templateCardTitle}>{tpl.name}</Text>
+                            </Pressable>
+                          ))
+                        ) : (
+                          <Text style={{ color: "#888" }}>No log templates yet.</Text>
+                        )}
+                      </View>
+                    )}
+
+                    {!!selectedLogTemplate && (
                       <>
-                        {logEditFields.map((f, idx) => (
-                          <View key={`${f.id}-${idx}`} style={styles.propertyContainer}>
-                            <Text style={{ marginBottom: 6, color: colors.primary, fontWeight: "600" }}>
+                        <Text style={[styles.label, { marginBottom: 8 }]}>
+                          {selectedLogTemplate?.name}
+                        </Text>
+                        {logFields.map((f) => (
+                          <View key={f.id} style={styles.propertyContainer}>
+                            <Text
+                              style={{ marginBottom: 6, color: colors.primary, fontWeight: "600" }}
+                            >
                               {f.name}
                             </Text>
-                            <TextInput
-                              style={styles.input}
-                              value={String(f.value ?? "")}
-                              onChangeText={(val) =>
-                                setLogEditFields((prev) =>
+                            <PropertyField
+                              type={f.property_type}
+                              value={f.value}
+                              onChange={(val) =>
+                                setLogFields((prev) =>
                                   prev.map((x) => (x.id === f.id ? { ...x, value: val } : x))
                                 )
                               }
+                              style={styles.input}
                             />
                           </View>
                         ))}
-
-                        <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 12, gap: 10 }}>
-                          <Pressable
-                            onPress={() => {
-                              setLogEditing(false);
-                              setLogEditFields([]);
-                            }}
-                          >
-                            <Text style={{ color: "#6b7280", fontWeight: "600" }}>Cancel</Text>
-                          </Pressable>
-                          <Pressable
-                            onPress={saveLogFromDetail}
-                            disabled={savingLog}
-                            style={{
-                              backgroundColor: colors.primary,
-                              borderRadius: 10,
-                              paddingHorizontal: 16,
-                              paddingVertical: 10,
-                              opacity: savingLog ? 0.6 : 1,
-                            }}
-                          >
-                            <Text style={{ color: "white", fontWeight: "600" }}>
-                              {savingLog ? "Saving…" : "Save"}
-                            </Text>
-                          </Pressable>
-                        </View>
                       </>
                     )}
                   </>
@@ -498,19 +505,67 @@ export default function LogsTab({ asset }) {
               </View>
             </ScrollView>
 
-            {!logForModal && (
-              <View style={styles.modalFooter}>
-                <Pressable
-                  style={[styles.primaryButton, { flex: 1, opacity: savingLog ? 0.6 : 1 }]}
-                  onPress={saveNewLog}
-                  disabled={savingLog || !selectedLogTemplate}
-                >
-                  <Text style={styles.primaryButtonText}>
-                    {savingLog ? "Saving…" : "Create Log"}
-                  </Text>
-                </Pressable>
-              </View>
-            )}
+            <View style={styles.modalFooter}>
+              {logForModal ? (
+                logEditing ? (
+                  <View style={[styles.buttonContainer, { alignItems: "stretch" }]}>
+                    <Pressable
+                      style={[styles.cancelButton, { flex: 1, marginRight: 8 }]}
+                      onPress={() => {
+                        setLogEditing(false);
+                        setLogEditFields([]);
+                      }}
+                      disabled={savingLog}
+                    >
+                      <Text style={styles.cancelButtonText}>Cancel</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.saveButton, { flex: 1, opacity: savingLog ? 0.6 : 1 }]}
+                      onPress={saveLogFromDetail}
+                      disabled={savingLog}
+                    >
+                      <Text style={styles.saveButtonText}>
+                        {savingLog ? "Saving…" : "Save"}
+                      </Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <View style={[styles.buttonContainer, { alignItems: "center" }]}>
+                    <Pressable
+                      style={[styles.footerPrimaryButton, { flex: 1 }]}
+                      onPress={beginEditFromModal}
+                    >
+                      <Text style={styles.saveButtonText}>Edit Log</Text>
+                    </Pressable>
+                  </View>
+                )
+              ) : (
+                <View style={[styles.buttonContainer, { alignItems: "stretch" }]}>
+                  <Pressable
+                    style={[styles.cancelButton, { flex: 1, marginRight: 8 }]}
+                    onPress={closeLogModal}
+                    disabled={savingLog}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[
+                      styles.saveButton,
+                      {
+                        flex: 1,
+                        opacity: savingLog || !selectedLogTemplate ? 0.6 : 1,
+                      },
+                    ]}
+                    onPress={saveNewLog}
+                    disabled={savingLog || !selectedLogTemplate}
+                  >
+                    <Text style={styles.saveButtonText}>
+                      {savingLog ? "Saving…" : "Create Log"}
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
           </View>
         </View>
       </Modal>

@@ -107,7 +107,7 @@ export default function AddComponentModal({ visible, onClose, onCreate, searchCa
                                     style={styles.input}
                                     value={model}
                                     onChangeText={(t) => { setModel(t); setPicked(null); }}
-                                    placeholder="e.g., FRP20129"
+                                    placeholder=" "
                                     placeholderTextColor="#888"
                                 />
                                 {(suggestions.length > 0 || loadingSugg) && (
@@ -148,7 +148,7 @@ export default function AddComponentModal({ visible, onClose, onCreate, searchCa
                                     style={styles.input}
                                     value={manufacturer}
                                     onChangeText={(t) => { setManufacturer(t); setPicked(null); }}
-                                    placeholder="e.g., Emerson"
+                                    placeholder=" "
                                     placeholderTextColor="#888"
                                 />
                             </View>
@@ -161,7 +161,7 @@ export default function AddComponentModal({ visible, onClose, onCreate, searchCa
                                     value={description}
                                     onChangeText={setDescription}
                                     multiline
-                                    placeholder="e.g., Electronic Board"
+                                    placeholder=" "
                                     placeholderTextColor="#888"
                                 />
                             </View>

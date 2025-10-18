@@ -1,5 +1,5 @@
 import React from "react";
-import { Platform, TextInput } from "react-native";
+import { Platform, TextInput, StyleSheet } from "react-native";
 
 export default function PropertyField({
     type = "text",
@@ -10,55 +10,59 @@ export default function PropertyField({
     readOnly = !editable,
     disabled = !editable,
 }) {
-    // Simple web style for native <input>; keep your RN style for TextInput.
-    const webInputStyle = {
-        width: "100%",
-        height: 40,
-        borderWidth: 1,
-        borderColor: "#ddd",
-        borderRadius: 8,
-        padding: 10,
-        background: "#f9f9f9",
-    };
+    const placeholder = type === "number" ? "Enter number" : "Enter value";
+    const flattenedStyle = StyleSheet.flatten(style) || {};
+    const isEditable = editable && !readOnly && !disabled;
 
-    // Web: use native inputs so disabled/readOnly are enforced by the browser
     if (Platform.OS === "web") {
         if (type === "date") {
+            const webDateStyle = {
+                width: "100%",
+                borderWidth: 1,
+                borderColor: "#ddd",
+                borderRadius: 8,
+                padding: 12,
+                fontSize: 16,
+                backgroundColor: "#f9f9f9",
+                boxSizing: "border-box",
+                boxShadow: "none",
+                ...flattenedStyle,
+            };
             return (
                 <input
                     type="date"
                     value={value || ""}
-                    onChange={(e) => editable && onChange?.(e.target.value)}
-                    disabled={disabled}
-                    readOnly={readOnly}
-                    style={webInputStyle}
+                    onChange={(e) => isEditable && onChange?.(e.target.value)}
+                    disabled={!isEditable}
+                    readOnly={!isEditable}
+                    style={webDateStyle}
                 />
             );
         }
-        if (type === "number") {
-            return (
-                <input
-                    type="number"
-                    value={value ?? ""}
-                    onChange={(e) => editable && onChange?.(e.target.value)}
-                    disabled={disabled}
-                    readOnly={readOnly}
-                    style={webInputStyle}
-                />
-            );
-        }
+
+        return (
+            <TextInput
+                style={style}
+                value={String(value ?? "")}
+                onChangeText={(t) => isEditable && onChange?.(t)}
+                placeholder={placeholder}
+                placeholderTextColor="#999"
+                keyboardType={type === "number" ? "numeric" : "default"}
+                editable={isEditable}
+                inputMode={type === "number" ? "decimal" : undefined}
+            />
+        );
     }
 
-    // RN (and RN Web fallback): TextInput honors `editable`
     return (
         <TextInput
             style={style}
             value={String(value ?? "")}
-            onChangeText={(t) => editable && onChange?.(t)}
-            placeholder={type === "number" ? "Enter number" : "Enter value"}
+            onChangeText={(t) => isEditable && onChange?.(t)}
+            placeholder={placeholder}
             placeholderTextColor="#999"
             keyboardType={type === "number" ? "numeric" : "default"}
-            editable={editable}
+            editable={isEditable}
         />
     );
 }

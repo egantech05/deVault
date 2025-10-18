@@ -12,6 +12,7 @@ export default function AddComponentModal({ visible, onClose, onCreated }) {
     const [model, setModel] = useState("");
     const [manufacturer, setManufacturer] = useState("");
     const [description, setDescription] = useState("");
+    const [location, setLocation] = useState("");
     const [minStock, setMinStock] = useState("0");
     const [initialQty, setInitialQty] = useState("0");
 
@@ -37,6 +38,7 @@ export default function AddComponentModal({ visible, onClose, onCreated }) {
         setModel("");
         setManufacturer("");
         setDescription("");
+        setLocation("");
         setMinStock("0");
         setInitialQty("0");
         setModelError(null);
@@ -101,6 +103,7 @@ export default function AddComponentModal({ visible, onClose, onCreated }) {
         const modelKey = trimmedModel;
         const mfgKey = (manufacturer || "").trim() || null;
         const descVal = (description || "").trim() || null;
+        const locationVal = (location || "").trim() || null;
 
         const min_stock = Number.isFinite(parseInt(minStock, 10)) ? parseInt(minStock, 10) : 0;
         const init_qty = Number.isFinite(parseInt(initialQty, 10)) ? parseInt(initialQty, 10) : 0;
@@ -127,7 +130,7 @@ export default function AddComponentModal({ visible, onClose, onCreated }) {
             // Insert brand new component (no auto-update of existing)
             const { data: comp, error: insErr } = await supabase
                 .from(TABLE_COMPONENTS)
-                .insert([{ model: modelKey, manufacturer: mfgKey, description: descVal, min_stock }])
+                .insert([{ model: modelKey, manufacturer: mfgKey, description: descVal, location: locationVal, min_stock }])
                 .select("id")
                 .single();
             if (insErr) throw insErr;
@@ -203,6 +206,17 @@ export default function AddComponentModal({ visible, onClose, onCreated }) {
                                         <Text style={{ color: "#d9534f", fontSize: 12 }}>{modelError}</Text>
                                     ) : null}
                                 </View>
+                            </View>
+
+                            {/* Location */}
+                            <View style={styles.inputGroup}>
+                                <Text style={styles.label}>Location</Text>
+                                <TextInput
+                                    style={styles.input}
+                                    value={location}
+                                    onChangeText={setLocation}
+                                    placeholder=" "
+                                />
                             </View>
 
                             {/* Manufacturer */}

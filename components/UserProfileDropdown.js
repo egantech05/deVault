@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Modal,
   Pressable,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -90,6 +91,22 @@ export default function UserProfileDropdown({ visible, onClose, anchorPosition }
   );
 }
 
+const dropdownShadow = Platform.select({
+  web: {
+    boxShadow: '0px 4px 16px rgba(0,0,0,0.25)',
+  },
+  default: {
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+});
+
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
@@ -100,14 +117,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderRadius: 12,
     minWidth: 200,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 8,
+    ...dropdownShadow,
   },
   userInfo: {
     flexDirection: 'row',

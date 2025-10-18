@@ -101,12 +101,28 @@ const styles = StyleSheet.create({
         backgroundColor: colors.primary,
     },
     saveButtonText: { textAlign: "center", color: "white", fontWeight: "bold" },
+    footerPrimaryButton: {
+        paddingVertical: 12,
+        paddingHorizontal: 24,
+        borderRadius: 8,
+        backgroundColor: colors.primary,
+        minWidth: 120,
+    },
 
     pickerWrapper: {
         borderWidth: 1,
         borderColor: "#ddd",
         borderRadius: 6,
         backgroundColor: "#f9f9f9",
+        position: "relative",
+    },
+    webPickerIcon: {
+        position: "absolute",
+        right: 10,
+        top: 0,
+        bottom: 0,
+        justifyContent: "center",
+        alignItems: "center",
     },
     picker: { height: 40, width: "100%" },
     propertyContainer: {
@@ -123,9 +139,22 @@ const styles = StyleSheet.create({
     // ====== Tabs bar ======
     tabsBar: {
         flexDirection: "row",
+        alignItems: "center",
         borderBottomWidth: 1,
         borderBottomColor: "#e0e0e0",
         backgroundColor: "#fafafa",
+        paddingRight: 8,
+    },
+    tabsList: {
+        flexDirection: "row",
+        flex: 1,
+    },
+    tabActionButton: {
+        marginLeft: 12,
+        paddingHorizontal: 8,
+        paddingVertical: 8,
+        justifyContent: "center",
+        alignItems: "center",
     },
     tabItem: { paddingHorizontal: 16, paddingVertical: 12 },
     tabItemActive: { borderBottomWidth: 3, borderBottomColor: colors.primary },
@@ -172,6 +201,8 @@ const styles = StyleSheet.create({
     templateCardTitle: { fontWeight: "700", color: colors.primary },
 
     logRow: {
+        flexDirection: "row",
+        alignItems: "stretch",
         paddingVertical: 10,
         paddingHorizontal: 12,
         borderWidth: 1,
@@ -180,8 +211,26 @@ const styles = StyleSheet.create({
         backgroundColor: "white",
         marginBottom: 10,
     },
-    logRowTitle: { fontWeight: "800", color: colors.primary, marginBottom: 6 },
-    logRowTime: { color: "#888", marginLeft: 8 },
+    logRowContent: { flex: 1, paddingRight: 12 },
+    logRowHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginBottom: 8,
+    },
+    logRowTitle: { fontWeight: "800", color: colors.primary, marginBottom: 8 },
+    logRowActionColumn: {
+        alignItems: "center",
+        justifyContent: "flex-start",
+        paddingLeft: 12,
+        minWidth: 90,
+    },
+    logRowTime: { color: "#888", marginBottom: 16, textAlign: "center", width: "100%" },
+    deleteLogButton: {
+        padding: 6,
+        borderRadius: 999,
+        alignSelf: "flex-end",
+    },
     logValuePills: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
     valuePill: {
         backgroundColor: "#f1f3f5",

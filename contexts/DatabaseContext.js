@@ -34,17 +34,21 @@ import React, {
     const persistActiveDatabase = useCallback(
       async (databaseId) => {
         if (!user) return;
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ last_active_database_id: databaseId ?? null })
-          .eq('id', user.id);
-  
-        if (updateError) {
-          console.error('Failed to persist active database', updateError);
-          return;
-        }
-  
-        await fetchUserProfile(user.id);
+           try {
+                const { error: updateError } = await supabase
+                  .from('profiles')
+                  .update({ last_active_database_id: databaseId ?? null })
+                  .eq('id', user.id);
+          
+                if (updateError) {
+                  console.error('Failed to persist active database', updateError);
+                  return;
+                }
+          
+                await fetchUserProfile(user.id);
+              } catch (err) {
+                console.error('Unexpected error while persisting active database', err);
+              }
       },
       [user, fetchUserProfile]
     );
@@ -61,39 +65,49 @@ import React, {
       setLoading(true);
       setError(null);
   
-      const { data, error: fetchError } = await supabase
-        .from('databases')
-        .select('id, name, created_at')
-        .eq('owner_id', user.id)
-        .order('created_at', { ascending: true });
-  
-      if (fetchError) {
-        console.error('Failed to load databases', fetchError);
-        setDatabases([]);
-        setActiveDatabaseId(null);
-        setError(fetchError);
-        setLoading(false);
-        return;
-      }
-  
-      const list = data ?? [];
-      setDatabases(list);
-  
-      let nextActiveId = null;
-      if (profile?.last_active_database_id) {
-        const match = list.find((db) => db.id === profile.last_active_database_id);
-        if (match) {
-          nextActiveId = match.id;
-        }
-      }
-  
-      if (!nextActiveId && list.length) {
-        nextActiveId = list[0].id;
-        await persistActiveDatabase(nextActiveId);
-      }
-  
-      setActiveDatabaseId(nextActiveId);
-      setLoading(false);
+      try {
+              const { data, error: fetchError } = await supabase
+                .from('databases')
+                .select('id, name, created_at')
+                .eq('owner_id', user.id)
+                .order('created_at', { ascending: true });
+        
+              if (fetchError) {
+                console.error('Failed to load databases', fetchError);
+                setDatabases([]);
+                setActiveDatabaseId(null);
+                setError(fetchError);
+                return;
+              }
+        
+              const list = data ?? [];
+              setDatabases(list);
+        
+              let nextActiveId = null;
+              if (profile?.last_active_database_id) {
+                const match = list.find((db) => db.id === profile.last_active_database_id);
+                if (match) {
+                  nextActiveId = match.id;
+                }
+              }
+        
+              if (!nextActiveId && list.length) {
+                nextActiveId = list[0].id;
+                await persistActiveDatabase(nextActiveId);
+              }
+        
+              setActiveDatabaseId(nextActiveId);
+            } catch (err) {
+              console.error('Unexpected error loading databases', err);
+              setDatabases([]);
+              setActiveDatabaseId(null);
+              setError(err);
+            } finally {
+              setLoading(false);
+            }
+
+
+
     }, [user, profile?.last_active_database_id, persistActiveDatabase]);
   
     useEffect(() => {

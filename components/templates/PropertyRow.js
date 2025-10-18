@@ -11,12 +11,29 @@ const PROPERTY_TYPES = [
     { value: 'date', label: 'Date' },
 ];
 
+const webSelectStyle = {
+    width: '100%',
+    height: 40,
+    paddingLeft: 12,
+    paddingRight: 36,
+    fontSize: 16,
+    border: 'none',
+    outline: 'none',
+    backgroundColor: 'transparent',
+    color: colors.primary,
+    boxShadow: 'none',
+    cursor: 'pointer',
+    WebkitAppearance: 'none',
+    MozAppearance: 'none',
+};
+
 export default function PropertyRow({
     property,                 // { id, name, property_type, default_value }
     onChange,                 // (field, value) => void
     onRemove,                 // () => void
     canRemove = true,
     namePlaceholder = 'Property name',
+    showDefaultValue = true,
 }) {
     const { name, property_type, default_value } = property || {};
 
@@ -40,16 +57,21 @@ export default function PropertyRow({
                         {Platform.OS !== 'web' && <Text style={s.pickerLabel}>Type:</Text>}
                         <View style={s.pickerWrapper}>
                             {Platform.OS === 'web' ? (
-                                <select
-                                    value={property_type ?? 'text'}
-                                    onChange={(e) => onChange('property_type', e.target.value)}
-                                    style={{ width: '100%', height: 40, border: 'none', background: 'transparent' }}
-                                    aria-label="Type"
-                                >
-                                    {PROPERTY_TYPES.map((t) => (
-                                        <option key={t.value} value={t.value}>{t.label}</option>
-                                    ))}
-                                </select>
+                                <React.Fragment>
+                                    <select
+                                        value={property_type ?? 'text'}
+                                        onChange={(e) => onChange('property_type', e.target.value)}
+                                        style={webSelectStyle}
+                                        aria-label="Type"
+                                    >
+                                        {PROPERTY_TYPES.map((t) => (
+                                            <option key={t.value} value={t.value}>{t.label}</option>
+                                        ))}
+                                    </select>
+                                    <View pointerEvents="none" style={s.webPickerIcon}>
+                                        <Ionicons name="chevron-down" size={16} color="#555" />
+                                    </View>
+                                </React.Fragment>
                             ) : (
                                 <Picker
                                     selectedValue={property_type ?? 'text'}
@@ -75,33 +97,35 @@ export default function PropertyRow({
             </View>
 
             {/* default value (date/number only) */}
-            {property_type === 'date' ? (
-                Platform.OS === 'web' ? (
-                    <input
-                        type="date"
-                        value={default_value || ''}
-                        onChange={(e) => onChange('default_value', e.target.value)}
-                        style={s.dateInputWeb}
-                    />
-                ) : (
+            {showDefaultValue && (
+                property_type === 'date' ? (
+                    Platform.OS === 'web' ? (
+                        <input
+                            type="date"
+                            value={default_value || ''}
+                            onChange={(e) => onChange('default_value', e.target.value)}
+                            style={s.dateInputWeb}
+                        />
+                    ) : (
+                        <TextInput
+                            style={[s.input, { marginTop: 8 }]}
+                            value={default_value}
+                            onChangeText={(v) => onChange('default_value', v)}
+                            placeholder="Default date (YYYY-MM-DD)"
+                            placeholderTextColor="#999"
+                        />
+                    )
+                ) : property_type === 'number' ? (
                     <TextInput
                         style={[s.input, { marginTop: 8 }]}
                         value={default_value}
                         onChangeText={(v) => onChange('default_value', v)}
-                        placeholder="Default date (YYYY-MM-DD)"
+                        placeholder="Default number value"
                         placeholderTextColor="#999"
+                        keyboardType="numeric"
                     />
-                )
-            ) : property_type === 'number' ? (
-                <TextInput
-                    style={[s.input, { marginTop: 8 }]}
-                    value={default_value}
-                    onChangeText={(v) => onChange('default_value', v)}
-                    placeholder="Default number value"
-                    placeholderTextColor="#999"
-                    keyboardType="numeric"
-                />
-            ) : null}
+                ) : null
+            )}
         </View>
     );
 }
@@ -124,7 +148,23 @@ const s = StyleSheet.create({
     nameInput: { flex: 1 },
     pickerContainer: { flexDirection: 'row', alignItems: 'center' },
     pickerLabel: { fontSize: 12, color: colors.primary, marginRight: 4, fontWeight: 'bold' },
-    pickerWrapper: { flex: 1, borderWidth: 1, borderColor: '#ddd', borderRadius: 6, backgroundColor: '#f9f9f9', overflow: 'visible' },
+    pickerWrapper: {
+        flex: 1,
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 6,
+        backgroundColor: '#f9f9f9',
+        overflow: 'visible',
+        position: 'relative',
+    },
+    webPickerIcon: {
+        position: 'absolute',
+        right: 10,
+        top: 0,
+        bottom: 0,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
     picker: { height: 40, width: '100%' },
     removeBtn: { padding: 8, borderRadius: 6, backgroundColor: '#ffe6e6' },
     dateInputWeb: {

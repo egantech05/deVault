@@ -35,12 +35,14 @@ export default function WarehouseScreen() {
 
   const cardSize = getCardSize(width);
   const addIconSize = 0.5 * cardSize;
-  const numColumns = Math.max(1, Math.floor(width / (cardSize + 16)));
+  const numColumns = useMemo(() => Math.max(1, Math.floor(width / (cardSize + 16))), [width, cardSize]);
+  const gridKey = useMemo(() => `warehouse-cols-${numColumns}`, [numColumns]);
   const rowStyle = { justifyContent: "center" };
 
   const loadComponents = useCallback(async () => {
     if (!activeDatabaseId) {
       setComponents([]);
+      setSelected(null);
       setLoading(false);
       return;
     }
@@ -56,9 +58,17 @@ export default function WarehouseScreen() {
       console.error(error);
       Alert.alert("Error", error.message);
       setComponents([]);
-    } else {
-      setComponents(data || []);
+      setLoading(false);
+      return;
     }
+
+    const nextComponents = data || [];
+    setComponents(nextComponents);
+    setSelected((prev) => {
+      if (!prev) return prev;
+      const next = nextComponents.find((c) => c.id === prev.id);
+      return next || null;
+    });
     setLoading(false);
   }, [activeDatabaseId]);
 
@@ -216,6 +226,7 @@ export default function WarehouseScreen() {
         <ActivityIndicator style={{ marginTop: 16 }} />
       ) : (
         <FlatList
+          key={gridKey}
           data={gridData}
           keyExtractor={(item) => item.id}
           renderItem={renderGridItem}

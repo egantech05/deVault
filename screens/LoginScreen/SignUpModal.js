@@ -9,10 +9,27 @@ import {
   Modal,
   ScrollView,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
 import { colors } from '../../components/Styles';
+
+const successModalShadow = Platform.select({
+  web: {
+    boxShadow: '0px 4px 16px rgba(0,0,0,0.25)',
+  },
+  default: {
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+});
 
 export default function SignUpModal({ visible, onClose, onSuccess }) {
   const [formData, setFormData] = useState({
@@ -565,14 +582,7 @@ const styles = StyleSheet.create({
     padding: 24,
     margin: 20,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 8,
+    ...successModalShadow,
   },
   successIcon: {
     marginBottom: 16,
