@@ -1,17 +1,22 @@
+// App.js
 import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import StackNavigator from "./navigation/StackNavigator";
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from './contexts/AuthContext';
-
+import { DatabaseProvider } from './contexts/DatabaseContext';
+import CreateDatabaseModal from './components/CreateDatabaseModal';
 
 export default function App() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <NavigationContainer>
+        <DatabaseProvider>
+          <NavigationContainer>
             <StackNavigator />
-        </NavigationContainer>
+          </NavigationContainer>
+          <CreateDatabaseModal />
+        </DatabaseProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );

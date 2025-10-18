@@ -1,18 +1,32 @@
+// hooks/useAssets.js
 import { useCallback, useEffect, useState } from "react";
 import {
     fetchAssets, fetchAssetFirstValues,
     createAsset as apiCreateAsset,
     upsertAssetPropValues, deleteAssetById, fetchTemplateProps
 } from "../services/assetsApi";
+import { useDatabase } from "../contexts/DatabaseContext";
 
 export function useAssets() {
+    const { activeDatabaseId } = useDatabase();
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(false);
 
     const load = useCallback(async () => {
+        if (!activeDatabaseId) {
+            setItems([]);
+            setLoading(false);
+            return;
+        }
+
         setLoading(true);
-        const { data: a, error } = await fetchAssets();
-        if (error) { setItems([]); setLoading(false); return; }
+        const { data: a, error } = await fetchAssets(activeDatabaseId);
+        if (error) {
+            console.error("fetchAssets error:", error);
+            setItems([]);
+            setLoading(false);
+            return;
+        }
 
         const ids = (a || []).map(x => x.id);
         const firstValByAsset = {};
@@ -41,12 +55,13 @@ export function useAssets() {
 
         setItems(cards);
         setLoading(false);
-    }, []);
+    }, [activeDatabaseId]);
 
     useEffect(() => { load(); }, [load]);
 
     const createAsset = useCallback(async (template_id, propInputs = []) => {
-        const { data, error } = await apiCreateAsset(template_id);
+        if (!activeDatabaseId) throw new Error("Select a database first.");
+        const { data, error } = await apiCreateAsset(activeDatabaseId, template_id);
         if (error) throw error;
         const assetId = data?.id;
 
@@ -59,7 +74,7 @@ export function useAssets() {
             await upsertAssetPropValues(rows);
         }
         await load();
-    }, [load]);
+    }, [activeDatabaseId, load]);
 
     const removeAsset = useCallback(async (id) => {
         await deleteAssetById(id);

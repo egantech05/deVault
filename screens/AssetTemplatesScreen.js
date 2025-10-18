@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   View, Text, StyleSheet, FlatList, useWindowDimensions,
   TextInput, Pressable, Modal, Alert
@@ -12,54 +12,53 @@ import {
   listTemplates, createTemplate, getTemplateFields, updateTemplateName,
   upsertTemplateFields, archiveFields, deleteTemplate as deleteTemplateApi
 } from '../services/templatesApi';
+import { useDatabase } from "../contexts/DatabaseContext";
 
 const KIND = 'asset';
 
 export default function AssetTemplatesScreen() {
   const { width } = useWindowDimensions();
+  const { activeDatabaseId, openCreateModal } = useDatabase();
 
-  // UI state
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [nameTouched, setNameTouched] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Create modal properties
   const [properties, setProperties] = useState([{
     id: 1, name: '', property_type: 'text', default_value: '',
   }]);
 
-  // Templates list + details editor
   const [templates, setTemplates] = useState([]);
   const [detailsVisible, setDetailsVisible] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [detailName, setDetailName] = useState('');
   const [detailProps, setDetailProps] = useState([]);
 
-  // Duplicate name guard
   const normalizedNewName = templateName.trim().toLowerCase();
   const isDuplicateName = !!normalizedNewName &&
     templates.some(t => (t.name || '').toLowerCase() === normalizedNewName);
   const canSaveNew = !!templateName.trim() && !isDuplicateName && !isLoading;
 
-  // Load templates
-  const loadTemplates = async () => {
+  const loadTemplates = useCallback(async () => {
+    if (!activeDatabaseId) {
+      setTemplates([]);
+      return;
+    }
     try {
-      const rows = await listTemplates(KIND); // [{ id, name, assetCount }]
+      const rows = await listTemplates(KIND, activeDatabaseId);
       setTemplates(rows);
     } catch (e) {
       console.error('loadTemplates error:', e);
     }
-  };
-  useEffect(() => { loadTemplates(); }, []);
+  }, [activeDatabaseId]);
+  useEffect(() => { loadTemplates(); }, [loadTemplates]);
 
-  // Layout
   const cardSize = getCardSize(width);
   const addIconSize = 0.5 * cardSize;
   const numColumns = Math.max(1, Math.floor(width / (cardSize + 16)));
 
-  // Create-modal helpers
   const nextIdRef = useRef(2);
   const addProperty = () => {
     setProperties(prev => [
@@ -76,15 +75,17 @@ export default function AssetTemplatesScreen() {
     setProperties(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p));
   };
 
-  // Search
   const filteredTemplates = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return templates;
     return templates.filter(t => (t.name || '').toLowerCase().includes(q));
   }, [templates, searchQuery]);
 
-  // Create template
   const handleAddTemplate = async () => {
+    if (!activeDatabaseId) {
+      openCreateModal();
+      return;
+    }
     if (!templateName.trim()) {
       Alert.alert('Error', 'Please enter a template name');
       return;
@@ -92,6 +93,7 @@ export default function AssetTemplatesScreen() {
     setIsLoading(true);
     try {
       await createTemplate(KIND, {
+        databaseId: activeDatabaseId,
         name: templateName.trim(),
         properties: properties.filter(p => p.name.trim()),
       });
@@ -107,7 +109,6 @@ export default function AssetTemplatesScreen() {
     setIsLoading(false);
   };
 
-  // Open details
   const openDetails = async (tpl) => {
     setSelectedTemplate(tpl);
     setDetailName(tpl.name);
@@ -126,7 +127,6 @@ export default function AssetTemplatesScreen() {
     setDetailsVisible(true);
   };
 
-  // Details editor helpers
   const updateDetailProperty = (id, field, value) => {
     setDetailProps(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p));
   };
@@ -139,9 +139,12 @@ export default function AssetTemplatesScreen() {
     setDetailProps(prev => prev.length > 1 ? prev.filter(p => p.id !== id) : prev);
   };
 
-  // Save edits
   const saveTemplateEdits = async () => {
     if (!selectedTemplate) return;
+    if (!activeDatabaseId) {
+      openCreateModal();
+      return;
+    }
 
     const cleanName = detailName.trim();
     if (!cleanName) {
@@ -150,7 +153,7 @@ export default function AssetTemplatesScreen() {
     }
 
     try {
-      await updateTemplateName(KIND, selectedTemplate.id, cleanName);
+      await updateTemplateName(KIND, selectedTemplate.id, cleanName, activeDatabaseId);
 
       const existing = await getTemplateFields(KIND, selectedTemplate.id);
       const existingIds = new Set(existing.map(r => String(r.id)));
@@ -183,11 +186,14 @@ export default function AssetTemplatesScreen() {
     }
   };
 
-  // Delete template
   const deleteTemplate = async () => {
     if (!selectedTemplate) return;
+    if (!activeDatabaseId) {
+      openCreateModal();
+      return;
+    }
     try {
-      await deleteTemplateApi(KIND, selectedTemplate.id);
+      await deleteTemplateApi(KIND, selectedTemplate.id, activeDatabaseId);
     } catch (e) {
       console.error('delete template error:', e);
       Alert.alert('Error', 'Failed to delete template.');
@@ -199,232 +205,178 @@ export default function AssetTemplatesScreen() {
     await loadTemplates();
   };
 
-  // ---- Main list renderers ---------------------------------------------------
-  const mainListData = useMemo(
-    () => [{ _type: "add", id: "__add__" }, ...filteredTemplates],
-    [filteredTemplates]
-  );
-
-  const renderMainItem = ({ item }) => {
-    if (item._type === "add") {
-      return (
-        <Pressable
-          style={[styles.addCard, { width: cardSize, height: cardSize }]}
-          onPress={() => setIsModalVisible(true)}
-          accessibilityRole="button"
-        >
-          <Ionicons name="add" size={addIconSize} color={colors.brand} />
-        </Pressable>
-      );
-    }
+  if (!activeDatabaseId) {
     return (
-      <Pressable
-        style={[styles.displayCard, { width: cardSize, height: cardSize }]}
-        onPress={() => openDetails(item)}
-        accessibilityRole="button"
-      >
-        <Text style={[styles.countText, { fontSize: cardSize * 0.10 }]}>
-          {item.assetCount}
+      <View style={commonStyles.contentContainer}>
+        <Text style={commonStyles.textPrimary}>Asset Templates</Text>
+        <Text style={{ color: "#9ca3af", marginTop: 12 }}>
+          Select or create a database to manage asset templates.
         </Text>
-        <View style={styles.nameTextWrap}>
-          <AutoShrinkText
-            style={[styles.nameText, { fontSize: cardSize * 0.15 }]}
-            initialSize={cardSize * 0.15}
-            maxLines={2}
-          >
-            {item.name}
-          </AutoShrinkText>
-        </View>
-      </Pressable>
+        <Pressable style={{ marginTop: 16 }} onPress={openCreateModal}>
+          <Text style={{ color: colors.brand, fontWeight: "600" }}>Create database</Text>
+        </Pressable>
+      </View>
     );
-  };
+  }
 
-  // ---------- UI ----------
   return (
     <View style={commonStyles.contentContainer}>
       <Text style={commonStyles.textPrimary}>Asset Templates</Text>
 
       <View style={styles.searchBar}>
-        <Ionicons name="search" size={16} color="white" />
+        <Ionicons name="search" size={16} color={"white"} />
         <TextInput
           style={styles.searchInput}
           placeholder="Search..."
-          placeholderTextColor="white"
+          placeholderTextColor={"white"}
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
       </View>
 
-      {/* Main grid list */}
       <FlatList
-        data={mainListData}
-        keyExtractor={(item) => String(item.id)}
-        renderItem={renderMainItem}
+        data={[{ _key: "__add" }, ...filteredTemplates]}
+        keyExtractor={(item) => item._key || item.id}
         numColumns={numColumns}
-        columnWrapperStyle={numColumns > 1 ? styles.displayCardContainer : null}
-        contentContainerStyle={numColumns === 1 ? styles.displayCardContainer : undefined}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        ListEmptyComponent={
-          <Text style={{ color: "#888", marginTop: 12 }}>No templates found.</Text>
+        columnWrapperStyle={numColumns > 1 ? styles.rowWrap : null}
+        contentContainerStyle={numColumns === 1 ? styles.rowWrap : undefined}
+        renderItem={({ item }) =>
+          item._key === "__add" ? (
+            <Pressable
+              style={[styles.addCard, { width: cardSize, height: cardSize }]}
+              onPress={() => {
+                setTemplateName("");
+                setProperties([{ id: 1, name: "", property_type: "text", default_value: "" }]);
+                setIsModalVisible(true);
+              }}
+            >
+              <Ionicons name="add" size={cardSize * 0.35} color={colors.brand} />
+            </Pressable>
+          ) : (
+            <Pressable
+              style={[styles.displayCard, { width: cardSize, height: cardSize }]}
+              onPress={() => openDetails(item)}
+            >
+              <View style={styles.cardHeader}>
+                <Ionicons name="document-text-outline" size={18} color="#f9fafb" />
+                <Text style={styles.cardMeta}>{item.assetCount ?? 0} assets</Text>
+              </View>
+              <AutoShrinkText
+                style={styles.cardTitle}
+                initialSize={cardSize * 0.14}
+                maxLines={3}
+              >
+                {item.name}
+              </AutoShrinkText>
+            </Pressable>
+          )
         }
-        initialNumToRender={12}
-        windowSize={5}
-        removeClippedSubviews
       />
 
-      {/* Add Template Modal */}
-      <Modal
-        visible={isModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setIsModalVisible(false)}
-      >
+      <Modal visible={isModalVisible} transparent animationType="fade" onRequestClose={() => setIsModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modal}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>New Asset Template</Text>
+              <Text style={styles.modalTitle}>Create Template</Text>
               <Pressable onPress={() => setIsModalVisible(false)}>
                 <Ionicons name="close" size={24} color={colors.brand} />
               </Pressable>
             </View>
 
-            {/* Modal body as FlatList: header = name input, list = properties */}
-            <FlatList
-              data={properties}
-              keyExtractor={(item) => String(item.id)}
-              renderItem={({ item }) => (
-                <PropertyRow
-                  property={item}
-                  onChange={(field, value) => updateProperty(item.id, field, value)}
-                  onRemove={() => removeProperty(item.id)}
-                  canRemove={properties.length > 1}
-                  namePlaceholder="Description"
-                />
+            <View style={styles.modalContent}>
+              <Text style={styles.label}>Template Name</Text>
+              <TextInput
+                style={styles.input}
+                value={templateName}
+                onBlur={() => setNameTouched(true)}
+                onChangeText={setTemplateName}
+                placeholder="Template name"
+                autoCapitalize="words"
+              />
+              {nameTouched && !templateName.trim() && (
+                <Text style={styles.errorText}>Template name is required.</Text>
               )}
-              ListHeaderComponent={
-                <View style={styles.modalContent}>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Template Name</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={templateName}
-                      onChangeText={(v) => { setTemplateName(v); setNameTouched(true); }}
-                      onBlur={() => setNameTouched(true)}
-                      placeholder="Enter template name"
-                      placeholderTextColor="#999"
-                    />
-                    {nameTouched && isDuplicateName && (
-                      <Text style={styles.fieldError}>
-                        A template with this name already exists.
-                      </Text>
-                    )}
-                  </View>
+              {isDuplicateName && (
+                <Text style={styles.errorText}>Template name already exists.</Text>
+              )}
 
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Properties</Text>
-                  </View>
-                </View>
-              }
-              ListFooterComponent={
-                <View style={[styles.modalContent, { paddingTop: 0 }]}>
-                  <Pressable style={styles.addPropertyButton} onPress={addProperty}>
-                    <Ionicons name="add" size={20} color={colors.brand} />
-                    <Text style={styles.addPropertyText}>Add Property</Text>
-                  </Pressable>
-                </View>
-              }
-              contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20 }}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            />
+              <Text style={[styles.label, { marginTop: 20 }]}>Properties</Text>
+              {properties.map((prop) => (
+                <PropertyRow
+                  key={prop.id}
+                  property={prop}
+                  onChange={(field, value) => updateProperty(prop.id, field, value)}
+                  onRemove={() => removeProperty(prop.id)}
+                  canRemove={properties.length > 1}
+                />
+              ))}
+
+              <Pressable style={styles.addRowButton} onPress={addProperty}>
+                <Ionicons name="add-circle-outline" size={18} color={colors.brand} />
+                <Text style={styles.addRowText}>Add property</Text>
+              </Pressable>
+            </View>
 
             <View style={styles.modalFooter}>
-              <View style={styles.buttonContainer}>
-                <Pressable style={styles.cancelButton} onPress={() => setIsModalVisible(false)}>
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.saveButton, !canSaveNew && { opacity: 0.6 }]}
-                  onPress={canSaveNew ? handleAddTemplate : undefined}
-                  accessibilityState={{ disabled: !canSaveNew }}
-                >
-                  <Text style={styles.saveButtonText}>Save</Text>
-                </Pressable>
-              </View>
+              <Pressable style={styles.cancelButton} onPress={() => setIsModalVisible(false)}>
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.primaryButton, !canSaveNew && { opacity: 0.6 }]}
+                disabled={!canSaveNew}
+                onPress={handleAddTemplate}
+              >
+                <Text style={styles.primaryButtonText}>Create</Text>
+              </Pressable>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Details Modal */}
-      <Modal
-        visible={detailsVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => { setDetailsVisible(false); setSelectedTemplate(null); }}
-      >
+      <Modal visible={detailsVisible} transparent animationType="fade" onRequestClose={() => setDetailsVisible(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modal, { height: '70%' }]}>
+          <View style={styles.modal}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Template Details</Text>
-              <Pressable onPress={() => { setDetailsVisible(false); setSelectedTemplate(null); }}>
+              <Text style={styles.modalTitle}>Edit Template</Text>
+              <Pressable onPress={() => setDetailsVisible(false)}>
                 <Ionicons name="close" size={24} color={colors.brand} />
               </Pressable>
             </View>
 
-            {/* Modal body as FlatList */}
-            <FlatList
-              data={detailProps}
-              keyExtractor={(item) => String(item.id)}
-              renderItem={({ item }) => (
+            <View style={styles.modalContent}>
+              <Text style={styles.label}>Template Name</Text>
+              <TextInput
+                style={styles.input}
+                value={detailName}
+                onChangeText={setDetailName}
+                placeholder="Template name"
+                autoCapitalize="words"
+              />
+
+              <Text style={[styles.label, { marginTop: 20 }]}>Properties</Text>
+              {detailProps.map((prop) => (
                 <PropertyRow
-                  property={item}
-                  onChange={(field, value) => updateDetailProperty(item.id, field, value)}
-                  onRemove={() => removeDetailProperty(item.id)}
+                  key={prop.id}
+                  property={prop}
+                  onChange={(field, value) => updateDetailProperty(prop.id, field, value)}
+                  onRemove={() => removeDetailProperty(prop.id)}
                   canRemove={detailProps.length > 1}
                 />
-              )}
-              ListHeaderComponent={
-                <View style={styles.modalContent}>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Template Name</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={detailName}
-                      onChangeText={setDetailName}
-                      placeholder="Enter template name"
-                      placeholderTextColor="#999"
-                    />
-                  </View>
+              ))}
 
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Properties</Text>
-                  </View>
-                </View>
-              }
-              ListFooterComponent={
-                <View style={[styles.modalContent, { paddingTop: 0 }]}>
-                  <Pressable style={[styles.addPropertyButton, { marginTop: 8 }]} onPress={addDetailProperty}>
-                    <Ionicons name="add" size={20} color={colors.brand} />
-                    <Text style={styles.addPropertyText}>Add Property</Text>
-                  </Pressable>
-                </View>
-              }
-              contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20 }}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            />
+              <Pressable style={styles.addRowButton} onPress={addDetailProperty}>
+                <Ionicons name="add-circle-outline" size={18} color={colors.brand} />
+                <Text style={styles.addRowText}>Add property</Text>
+              </Pressable>
+            </View>
 
             <View style={styles.modalFooter}>
-              <View style={styles.buttonContainer}>
-                <Pressable style={[styles.cancelButton, { borderColor: '#ff4444' }]} onPress={deleteTemplate}>
-                  <Text style={[styles.cancelButtonText, { color: '#ff4444' }]}>Delete Template</Text>
-                </Pressable>
-                <Pressable style={[styles.saveButton, { marginLeft: 8 }]} onPress={saveTemplateEdits}>
-                  <Text style={styles.saveButtonText}>Save Changes</Text>
-                </Pressable>
-              </View>
+              <Pressable style={styles.dangerButton} onPress={deleteTemplate}>
+                <Text style={styles.dangerButtonText}>Delete</Text>
+              </Pressable>
+              <Pressable style={styles.primaryButton} onPress={saveTemplateEdits}>
+                <Text style={styles.primaryButtonText}>Save</Text>
+              </Pressable>
             </View>
           </View>
         </View>
@@ -433,137 +385,242 @@ export default function AssetTemplatesScreen() {
   );
 }
 
-export const styles = StyleSheet.create({
-  scrollContainer: { flex: 1 },
-  displayCardContainer: {
-    flex: 1,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-  },
-
+const styles = StyleSheet.create({
   searchBar: {
     padding: 16,
     borderColor: "white",
     borderBottomWidth: 3,
     height: 55,
-    flexDirection: 'row',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 8,
   },
-  searchInput: {
-    color: 'white',
-    marginLeft: 16,
-    flex: 1,
+  searchInput: { color: "white", marginLeft: 16, flex: 1 },
+
+  rowWrap: {
+    gap: 16,
+    paddingVertical: 12,
+    justifyContent: "center",
   },
 
-  displayCard: {
-    backgroundColor: "white",
-    padding: 12,
-    borderRadius: 13,
-    margin: 8,
-  },
   addCard: {
-    backgroundColor: colors.secondary,
-    padding: 12,
-    borderRadius: 13,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.25)",
+    borderStyle: "dashed",
+    borderRadius: 24,
+    backgroundColor: "rgba(255,255,255,0.05)",
     margin: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
-  countText: { alignSelf: 'flex-end', fontWeight: 'bold' },
-  nameText: { fontWeight: 'bold' },
-  nameTextWrap: { flex: 1, justifyContent: 'flex-end' },
+  displayCard: {
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 24,
+    padding: 18,
+    justifyContent: "space-between",
+    margin: 8,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  cardMeta: {
+    color: "#d1d5db",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  cardTitle: {
+    color: "white",
+    fontWeight: "700",
+  },
 
   modalOverlay: {
-    flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    justifyContent: 'center', alignItems: 'center',
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.8)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
   },
   modal: {
-    width: '90%', backgroundColor: 'white', borderRadius: 16,
-    height: '80%', flexDirection: 'column', overflow: 'visible',
+    width: 540,
+    maxWidth: "100%",
+    maxHeight: "90%",
+    borderRadius: 24,
+    backgroundColor: "#111827",
+    overflow: "hidden",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.08)",
+  },
+  modalTitle: {
+    color: "white",
+    fontSize: 20,
+    fontWeight: "700",
+  },
+  modalContent: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    gap: 20,
+  },
+  modalFooter: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.08)",
+  },
+
+  label: {
+    color: "#d1d5db",
+    fontWeight: "600",
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    color: "white",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  errorText: { color: "#f87171", marginTop: 6 },
+
+  addRowButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  addRowText: {
+    color: colors.brand,
+    fontWeight: "600",
+  },
+  primaryButton: {
+    backgroundColor: colors.brand,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  primaryButtonText: { color: "white", fontWeight: "700" },
+  cancelButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  cancelButtonText: {
+    color: "#d1d5db",
+    fontWeight: "600",
+  },
+  dangerButton: {
+    backgroundColor: "#dc2626",
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  dangerButtonText: { color: "white", fontWeight: "700" },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modal: {
+    width: "90%",
+    maxWidth: 520,
+    backgroundColor: "white",
+    borderRadius: 16,
+    maxHeight: "80%",
+    flexDirection: "column",
+    overflow: "hidden",
   },
   modalHeader: {
     backgroundColor: colors.primary,
-    borderTopLeftRadius: 13, borderTopRightRadius: 13,
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    padding: 20, borderBottomWidth: 1, borderBottomColor: '#e0e0e0',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e0e0e0",
     flexShrink: 0,
   },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', color: 'white' },
-  modalScrollView: { flex: 1, height: '80%', overflow: 'visible' }, // kept if referenced elsewhere
-  modalContent: { padding: 20 },
-
-  inputGroup: { marginBottom: 20 },
-  label: { fontSize: 16, color: colors.primary, marginBottom: 8 },
-  input: {
-    borderWidth: 1, borderColor: '#ddd', borderRadius: 8,
-    padding: 12, fontSize: 16, backgroundColor: '#f9f9f9',
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "white",
   },
-
+  modalContent: {
+    padding: 20,
+    flexGrow: 1,
+  },
   modalFooter: {
-    padding: 20, borderTopWidth: 1, borderTopColor: '#e0e0e0',
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: "#e0e0e0",
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 12,
     flexShrink: 0,
   },
-  buttonContainer: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 20 },
+
+  label: {
+    fontSize: 16,
+    color: colors.primary,
+    marginBottom: 8,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: "#f9f9f9",
+  },
+  errorText: {
+    color: "#f87171",
+    marginTop: 6,
+  },
+
+  addRowButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 12,
+  },
+  addRowText: {
+    color: colors.brand,
+    fontWeight: "600",
+  },
   cancelButton: {
-    flex: 1, padding: 12, marginRight: 8, borderRadius: 8,
-    borderWidth: 1, borderColor: colors.brand,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.brand,
   },
-  cancelButtonText: { textAlign: 'center', color: colors.normal, fontWeight: 'bold' },
-  saveButton: {
-    flex: 1, padding: 12, marginLeft: 8, borderRadius: 8, backgroundColor: colors.primary,
+  cancelButtonText: {
+    color: colors.brand,
+    fontWeight: "600",
   },
-  saveButtonText: { textAlign: 'center', color: 'white', fontWeight: 'bold' },
-
-  propertyRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  propertyInputs: { flex: 1, marginRight: 8 },
-  removeButton: { padding: 8, borderRadius: 6, backgroundColor: '#ffe6e6' },
-  addPropertyButton: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    padding: 12, borderWidth: 2, borderColor: colors.brand, borderStyle: 'dashed',
-    borderRadius: 8, backgroundColor: '#f9f9f9',
+  primaryButton: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: colors.brand,
   },
-  addPropertyText: { marginLeft: 8, color: colors.brand, fontWeight: 'bold' },
-
-  propertyContainer: {
-    backgroundColor: '#f8f9fa', borderRadius: 8, padding: 12,
-    marginBottom: 12, borderWidth: 1, borderColor: '#e9ecef',
+  primaryButtonText: {
+    color: "white",
+    fontWeight: "700",
   },
 
-  propertyNameContainer: { flex: 2, marginRight: 8 },
-  propertyNameInput: { flex: 1 },
-  propertyTypeContainer: {
-    flex: 1, marginRight: 8, zIndex: 1, position: 'relative', elevation: 4,
-  },
-  pickerContainer: { flexDirection: 'row', alignItems: 'center' },
-  pickerLabel: { fontSize: 12, color: colors.primary, marginRight: 4, fontWeight: 'bold' },
-  pickerWrapper: {
-    flex: 1, borderWidth: 1, borderColor: '#ddd', borderRadius: 6,
-    backgroundColor: '#f9f9f9', overflow: 'visible',
-  },
-  picker: { height: 40, width: '100%' },
-
-  defaultValueSection: { marginTop: 8 },
-  defaultValueLabel: { fontSize: 12, color: colors.primary, marginBottom: 4, fontWeight: 'bold' },
-
-  booleanContainer: { flexDirection: 'row' },
-  booleanButton: {
-    paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1,
-    borderColor: colors.brand, borderRadius: 6, marginRight: 8,
-  },
-  booleanButtonSelected: { backgroundColor: colors.brand },
-  booleanButtonText: { color: colors.brand, fontSize: 12, fontWeight: 'bold' },
-  booleanButtonTextSelected: { color: 'white' },
-
-  selectContainer: { marginTop: 4 },
-  selectLabel: { fontSize: 12, color: colors.primary, marginBottom: 4, fontWeight: 'bold' },
-  selectOptionRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  selectOptionInput: { flex: 1, marginRight: 8, fontSize: 12 },
-  removeOptionButton: { padding: 4 },
-  addOptionButton: {
-    flexDirection: 'row', alignItems: 'center', padding: 8,
-    borderWidth: 1, borderColor: colors.brand, borderStyle: 'dashed',
-    borderRadius: 4, backgroundColor: '#f9f9f9', marginTop: 4,
-  },
-  addOptionText: { marginLeft: 4, color: colors.brand, fontSize: 12, fontWeight: 'bold' },
 });

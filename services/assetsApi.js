@@ -1,10 +1,14 @@
+// services/assetsApi.js
 import { supabase } from "../lib/supabase";
 
-export const fetchAssets = () =>
-    supabase
+export const fetchAssets = (databaseId) => {
+    if (!databaseId) return Promise.resolve({ data: [], error: null });
+    return supabase
         .from("assets")
         .select("id, template_id, created_at, asset_templates(name)")
+        .eq("database_id", databaseId)
         .order("created_at", { ascending: false });
+};
 
 export const fetchAssetFirstValues = (ids) =>
     supabase
@@ -12,8 +16,8 @@ export const fetchAssetFirstValues = (ids) =>
         .select("asset_id, value, template_properties:property_id(display_order, is_active)")
         .in("asset_id", ids);
 
-export const createAsset = (template_id) =>
-    supabase.from("assets").insert([{ template_id }]).select("id").single();
+export const createAsset = (databaseId, template_id) =>
+    supabase.from("assets").insert([{ template_id, database_id: databaseId }]).select("id").single();
 
 export const upsertAssetPropValues = (rows) =>
     supabase.from("asset_property_values").upsert(rows, { onConflict: "asset_id,property_id" });

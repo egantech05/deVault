@@ -1,5 +1,5 @@
 // LogTemplatesScreen.js
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo,useCallback } from "react";
 import {
   View,
   Text,
@@ -25,6 +25,9 @@ import {
   archiveFields,
   deleteTemplate as deleteTemplateApi,
 } from "../services/templatesApi";
+import { useDatabase } from "../contexts/DatabaseContext";
+
+
 
 const KIND = "log";
 
@@ -37,6 +40,7 @@ export default function LogTemplatesScreen() {
   const [templateName, setTemplateName] = useState("");
   const [nameTouched, setNameTouched] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const { activeDatabaseId, openCreateModal } = useDatabase();
 
   // Create modal fields
   const [properties, setProperties] = useState([
@@ -58,17 +62,23 @@ export default function LogTemplatesScreen() {
   const canSaveNew = !!templateName.trim() && !isDuplicateName && !isLoading;
 
   // Load templates
-  const loadTemplates = async () => {
+  const loadTemplates = useCallback(async () => {
+    if (!activeDatabaseId) {
+      setTemplates([]);
+      return;
+    }
+  
     try {
-      const rows = await listTemplates(KIND); // [{ id, name, logCount }]
+      const rows = await listTemplates(KIND, activeDatabaseId);
       setTemplates(rows);
     } catch (e) {
-      console.error("loadTemplates error:", e);
+      console.error('loadTemplates error:', e);
     }
-  };
+  }, [activeDatabaseId]);
+  
   useEffect(() => {
     loadTemplates();
-  }, []);
+  }, [loadTemplates]);
 
   // Layout
   const cardSize = getCardSize(width);
@@ -109,6 +119,11 @@ export default function LogTemplatesScreen() {
 
   // Create template
   const handleAddTemplate = async () => {
+    if (!activeDatabaseId) {
+      openCreateModal();
+      return;
+    }
+
     if (!templateName.trim()) {
       Alert.alert("Error", "Please enter a template name");
       return;
@@ -118,6 +133,7 @@ export default function LogTemplatesScreen() {
       await createTemplate(KIND, {
         name: templateName.trim(),
         properties: properties.filter((p) => p.name.trim()),
+        databaseId:activeDatabaseId,
       });
       Alert.alert("Success", "Template created successfully");
       setTemplateName("");
@@ -198,7 +214,7 @@ export default function LogTemplatesScreen() {
     }
 
     try {
-      await updateTemplateName(KIND, selectedTemplate.id, cleanName);
+      await updateTemplateName(KIND, selectedTemplate.id, cleanName, activeDatabaseId);
 
       const existing = await getTemplateFields(KIND, selectedTemplate.id);
       const existingIds = new Set(existing.map((r) => String(r.id)));
@@ -484,7 +500,7 @@ export default function LogTemplatesScreen() {
                   onPress={async () => {
                     if (!selectedTemplate) return;
                     try {
-                      await deleteTemplateApi(KIND, selectedTemplate.id);
+                      await deleteTemplateApi(KIND, selectedTemplate.id,activeDatabaseId);
                     } catch (e) {
                       console.error("delete template error:", e);
                       Alert.alert("Error", "Failed to delete template.");

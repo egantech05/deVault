@@ -1,22 +1,25 @@
-// hooks/useComponents.js
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../lib/supabase";
+import { useDatabase } from "../contexts/DatabaseContext";
 
 export function useComponents(assetId) {
-    const [items, setItems] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const { activeDatabaseId, openCreateModal } = useDatabase();
 
-    /** Load all components linked to this asset */
-    const load = useCallback(async () => {
-        if (!assetId) return;
-        setLoading(true);
-        setError(null);
+  const load = useCallback(async () => {
+    if (!assetId || !activeDatabaseId) {
+      setItems([]);
+      return;
+    }
 
-        const { data, error } = await supabase
-            .from("asset_components")
-            .select(
-                `
+    setLoading(true);
+    setError(null);
+
+    const { data, error: fetchError } = await supabase
+      .from("asset_components")
+      .select(`
         id,
         asset_id,
         catalog_id,
@@ -24,108 +27,122 @@ export function useComponents(assetId) {
         manufacturer,
         description,
         created_at
-      `
-            )
-            .eq("asset_id", assetId)
-            .order("created_at", { ascending: false });
+      `)
+      .eq("asset_id", assetId)
+      .eq("database_id", activeDatabaseId)
+      .order("created_at", { ascending: false });
 
-        if (error) {
-            setError(error);
-            setItems([]);
-        } else {
-            setItems(data || []);
-        }
-        setLoading(false);
-    }, [assetId]);
+    if (fetchError) {
+      setError(fetchError);
+      setItems([]);
+    } else {
+      setItems(data ?? []);
+    }
+    setLoading(false);
+  }, [assetId, activeDatabaseId]);
 
-    /** Create (or reuse) a component, then link it to the asset */
-    const create = useCallback(
-        async ({ model, manufacturer, description }) => {
-            const m = (model || "").trim();
-            const manu = (manufacturer || "").trim();
-            const desc = (description || "").trim();
+  const create = useCallback(
+    async ({ model, manufacturer, description }) => {
+      if (!activeDatabaseId) {
+        openCreateModal();
+        throw new Error("Select a database before adding components.");
+      }
 
-            if (!m) throw new Error("Model is required");
+      const trimmedModel = (model || "").trim();
+      const trimmedManufacturer = (manufacturer || "").trim();
+      const trimmedDescription = (description || "").trim();
 
-            // 1) Look up existing catalog row by model + manufacturer
-            const { data: existing, error: lookupErr } = await supabase
-                .from("components_catalog")
-                .select("id")
-                .eq("model", m)
-                .eq("manufacturer", manu || null)
-                .maybeSingle();
+      if (!trimmedModel) throw new Error("Model is required");
 
-            if (lookupErr) throw lookupErr;
+      const { data: existing, error: lookupErr } = await supabase
+        .from("components_catalog")
+        .select("id")
+        .eq("database_id", activeDatabaseId)
+        .eq("model", trimmedModel)
+        .eq("manufacturer", trimmedManufacturer || null)
+        .maybeSingle();
+      if (lookupErr) throw lookupErr;
 
-            let catalogId = existing?.id;
+      let catalogId = existing?.id;
 
-            // 2) If not found, insert into catalog
-            if (!catalogId) {
-                const { data: created, error: catErr } = await supabase
-                    .from("components_catalog")
-                    .insert([{ model: m, manufacturer: manu || null, description: desc }])
-                    .select("id")
-                    .single();
+      if (!catalogId) {
+        const { data: created, error: catalogErr } = await supabase
+          .from("components_catalog")
+          .insert([{
+            database_id: activeDatabaseId,
+            model: trimmedModel,
+            manufacturer: trimmedManufacturer || null,
+            description: trimmedDescription || null,
+          }])
+          .select("id")
+          .single();
+        if (catalogErr) throw catalogErr;
+        catalogId = created.id;
+      }
 
-                if (catErr) throw catErr;
-                catalogId = created.id;
-            }
+      const { data: existingLink, error: linkCheckErr } = await supabase
+        .from("asset_components")
+        .select("id")
+        .eq("asset_id", assetId)
+        .eq("catalog_id", catalogId)
+        .eq("database_id", activeDatabaseId)
+        .maybeSingle();
+      if (linkCheckErr) throw linkCheckErr;
 
-            // 3) Check if link already exists for this asset
-            const { data: existingLink, error: linkCheckErr } = await supabase
-                .from("asset_components")
-                .select("id")
-                .eq("asset_id", assetId)
-                .eq("catalog_id", catalogId)
-                .maybeSingle();
+      if (!existingLink) {
+        const { error: linkErr } = await supabase
+          .from("asset_components")
+          .insert([{
+            database_id: activeDatabaseId,
+            asset_id: assetId,
+            catalog_id: catalogId,
+            model: trimmedModel,
+            manufacturer: trimmedManufacturer || null,
+            description: trimmedDescription || null,
+          }]);
+        if (linkErr) throw linkErr;
+      }
 
-            if (linkCheckErr) throw linkCheckErr;
+      await load();
+    },
+    [activeDatabaseId, assetId, openCreateModal, load]
+  );
 
-            // 4) Insert link if missing
-            if (!existingLink) {
-                const { error: linkErr } = await supabase.from("asset_components").insert([
-                    {
-                        asset_id: assetId,
-                        catalog_id: catalogId,
-                        model: m,
-                        manufacturer: manu,
-                        description: desc,
-                    },
-                ]);
-                if (linkErr) throw linkErr;
-            }
+  const remove = useCallback(
+    async (id) => {
+      if (!activeDatabaseId) {
+        openCreateModal();
+        return;
+      }
+      const { error: deleteErr } = await supabase
+        .from("asset_components")
+        .delete()
+        .eq("id", id)
+        .eq("database_id", activeDatabaseId);
+      if (deleteErr) throw deleteErr;
+      await load();
+    },
+    [activeDatabaseId, openCreateModal, load]
+  );
 
-            await load();
-        },
-        [assetId, load]
-    );
+  const searchCatalog = useCallback(
+    async (query) => {
+      if (!activeDatabaseId || !query?.trim()) return [];
+      const { data, error: searchErr } = await supabase
+        .from("components_catalog")
+        .select("id, model, manufacturer, description")
+        .eq("database_id", activeDatabaseId)
+        .or(`model.ilike.%${query}%,manufacturer.ilike.%${query}%`)
+        .order("created_at", { ascending: false })
+        .limit(10);
+      return searchErr ? [] : data ?? [];
+    },
+    [activeDatabaseId]
+  );
 
-    /** Remove a component link from this asset */
-    const remove = useCallback(
-        async (id) => {
-            const { error } = await supabase.from("asset_components").delete().eq("id", id);
-            if (error) throw error;
-            await load();
-        },
-        [load]
-    );
+  useEffect(() => {
+    load();
+  }, [load]);
 
-    /** Search the global catalog by model/manufacturer */
-    const searchCatalog = useCallback(async (q) => {
-        if (!q?.trim()) return [];
-        const { data, error } = await supabase
-            .from("components_catalog")
-            .select("id, model, manufacturer, description")
-            .or(`model.ilike.%${q}%,manufacturer.ilike.%${q}%`)
-            .order("created_at", { ascending: false })
-            .limit(10);
-        if (error) return [];
-        return data || [];
-    }, []);
-
-    useEffect(() => {
-        load();
-    }, [load]);
-
-    return { items, loading, error, load, create, remove, searchCatalog };
+  return { items, loading, error, load, create, remove, searchCatalog };
 }

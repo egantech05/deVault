@@ -16,13 +16,13 @@ import { colors, commonStyles } from '../components/Styles';
 import { useAuth } from '../contexts/AuthContext';
 import SignUpModal from './LoginScreen/SignUpModal';
 
-export default function LoginScreen({ navigation }) {
-  const { user } = useAuth();   
+export default function LoginScreen({ navigation }) { 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [showSignUpModal, setShowSignUpModal] = useState(false); // ADD THIS LINE
+  const [showSignUpModal, setShowSignUpModal] = useState(false);
+  const [loginError, setLoginError] = useState('');
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -31,6 +31,7 @@ export default function LoginScreen({ navigation }) {
     }
 
     setLoading(true);
+    setLoginError('');
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
@@ -38,10 +39,25 @@ export default function LoginScreen({ navigation }) {
       });
 
       if (error) {
-        Alert.alert('Login Failed', error.message); 
+        console.log('Login error:', error.message);
+        
+        // Handle specific error cases
+        if (error.message.includes('Invalid login credentials') || 
+            error.message.includes('Invalid email or password') ||
+            error.message.includes('User not found')) {
+          setLoginError('User not found. Proceed with signing up new account');
+        } else if (error.message.includes('Email not confirmed')) {
+          setLoginError('Please check your email and click the confirmation link before logging in');
+        } else {
+          setLoginError(error.message);
+        }
+      } else {
+        // Login successful - AuthGuard will handle navigation
+        console.log('Login successful');
       }
     } catch (error) {
-      Alert.alert('Error', 'An unexpected error occurred');
+        console.error('Login catch error:', error);
+        setLoginError('An unexpected error occurred');
     } finally {
       setLoading(false);
     }
@@ -82,111 +98,114 @@ export default function LoginScreen({ navigation }) {
  
   };
 
-  return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+return (
+  <KeyboardAvoidingView 
+    style={styles.container} 
+    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+  >
+    <ScrollView 
+      contentContainerStyle={styles.scrollContainer}
+      keyboardShouldPersistTaps="handled"
     >
-      <ScrollView 
-        contentContainerStyle={styles.scrollContainer}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.content}>
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.title}>deVault</Text>
-            <Text style={styles.subtitle}>Asset Management System</Text>
+      <View style={styles.content}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>deVault</Text>
+          <Text style={styles.subtitle}>Asset Management System</Text>
+        </View>
+
+        {/* Login Form */}
+        <View style={styles.form}>
+          {/* Email Input */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Email</Text>
+            <TextInput
+              style={[styles.input]}
+              placeholder="Enter your email"
+              placeholderTextColor="#999"
+              value={email}
+              onChangeText={(value) => {
+                setEmail(value);
+                setLoginError(''); // Clear error when user starts typing
+              }}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!loading}
+            />
+            {loginError ? <Text style={styles.errorText}>{String(loginError)}</Text> : null}
           </View>
 
-          {/* Login Form */}
-          <View style={styles.form}>
-            {/* Email Input */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Email</Text>
+          {/* Password Input */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Password</Text>
+            <View style={styles.passwordContainer}>
               <TextInput
-                style={styles.input}
-                placeholder="Enter your email"
+                style={styles.passwordInput}
+                placeholder="Enter your password"
                 placeholderTextColor="#999"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
                 autoCapitalize="none"
                 autoCorrect={false}
                 editable={!loading}
               />
-            </View>
-
-            {/* Password Input */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Password</Text>
-              <View style={styles.passwordContainer}>
-                <TextInput
-                  style={styles.passwordInput}
-                  placeholder="Enter your password"
-                  placeholderTextColor="#999"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  editable={!loading}
-                />
-                <TouchableOpacity
-                  style={styles.eyeButton}
-                  onPress={() => setShowPassword(!showPassword)}
-                >
-                  <Text style={styles.eyeButtonText}>
-                    {showPassword ? '👁️' : '👁️‍🗨️'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Forgot Password */}
-            <TouchableOpacity 
-              style={styles.forgotPassword}
-              onPress={handleForgotPassword}
-              disabled={loading}
-            >
-              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-            </TouchableOpacity>
-
-            {/* Login Button */}
-            <TouchableOpacity
-              style={[styles.loginButton, loading && styles.loginButtonDisabled]}
-              onPress={handleLogin}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="white" />
-              ) : (
-                <Text style={styles.loginButtonText}>Login</Text>
-              )}
-            </TouchableOpacity>
-
-
-            {/* Sign Up Link */}
-            <View style={styles.signUpContainer}>
-                <TouchableOpacity 
-                    style={styles.signUpButton} 
-                    onPress={handleSignUp} 
-                    disabled={loading}
-                >
-                    <Text style={styles.signUpLink}>New User? Sign Up Here</Text>
-                </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.eyeButton}
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                <Text style={styles.eyeButtonText}>
+                  {showPassword ? '👁️' : '👁️‍🗨️'}
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
-        </View>
-      </ScrollView>
 
-            {/* Sign Up Modal */}
-            <SignUpModal
-                visible={showSignUpModal}
-                onClose={() => setShowSignUpModal(false)}
-                onSuccess={handleSignUpSuccess}
-            />
-    </KeyboardAvoidingView>
-  );
+          {/* Forgot Password */}
+          <TouchableOpacity 
+            style={styles.forgotPassword}
+            onPress={handleForgotPassword}
+            disabled={loading}
+          >
+            <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+          </TouchableOpacity>
+
+          {/* Login Button */}
+          <TouchableOpacity
+            style={[styles.loginButton, loading && styles.loginButtonDisabled]}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text style={styles.loginButtonText}>Login</Text>
+            )}
+          </TouchableOpacity>
+
+          {/* Sign Up Link */}
+          <View style={styles.signUpContainer}>
+            <TouchableOpacity 
+              style={styles.signUpButton} 
+              onPress={handleSignUp} 
+              disabled={loading}
+            >
+              <Text style={styles.signUpLink}>New User? Sign Up Here</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </ScrollView>
+
+    {/* Sign Up Modal */}
+    <SignUpModal
+      visible={showSignUpModal}
+      onClose={() => setShowSignUpModal(false)}
+      onSuccess={handleSignUpSuccess}
+    />
+  </KeyboardAvoidingView>
+);
 }
 
 const styles = StyleSheet.create({
@@ -304,4 +323,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  inputError: {
+    borderColor: '#ff4444',
+    backgroundColor: '#fff5f5',
+  },
+  errorText: {
+    color: '#ff4444',
+    fontSize: 12,
+    marginTop: 4,
+    fontWeight: '500',
+  },
+
 });

@@ -16,6 +16,7 @@ import DashedRowButton from "../components/DashedRowButton";
 import { useLinkedDocsList } from "../hooks/useLinkedDocuments";
 import AddLinkedDocModal from "./LinkedDocumentsScreen/AddLinkedDocModal";
 import { supabase } from "../lib/supabase";
+import { useDatabase } from "../contexts/DatabaseContext";
 
 // Helper to split "linkedDocs/12345-file.pdf" into { bucket, path }
 function parseStoragePath(storage_path = "") {
@@ -26,11 +27,21 @@ function parseStoragePath(storage_path = "") {
 export default function LinkedDocumentsScreen() {
     const [modalVisible, setModalVisible] = useState(false);
     const { search, setSearch, rows, loading, reload } = useLinkedDocsList();
+    const { activeDatabaseId, openCreateModal } = useDatabase();
+
+    const openCreateModalIfNeeded = () => {
+        if (!activeDatabaseId) {
+          openCreateModal();
+          return false;
+        }
+        return true;
+      };
 
     const title = useMemo(() => "Linked Documents", []);
 
     // Delete document (and cascade all linked rules)
     const deleteDocumentAndRules = async (doc) => {
+        if (!openCreateModalIfNeeded()) return;
         const go = async () => {
             try {
                 // 1️⃣ Delete from storage

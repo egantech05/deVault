@@ -1,358 +1,360 @@
 // screens/WarehouseModal/index.js
 import React, { useMemo, useState } from "react";
-import { Modal, View, Text, Pressable, ScrollView, Alert, TextInput, Platform } from "react-native";
+import {
+  Modal,
+  View,
+  Text,
+  Pressable,
+  ScrollView,
+  Alert,
+  TextInput,
+  Platform,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import InfoTab from "./InfoTab";
 import HistoricalTab from "./HistoricalTab";
 import styles from "../WarehouseScreen/styles";
 import { colors } from "../../components/Styles";
 import { supabase } from "../../lib/supabase";
+import { useDatabase } from "../../contexts/DatabaseContext";
 
 const TABS = { INFO: "Info", HIST: "Historical" };
 
 export default function WarehouseModal({ visible, onClose, item, onAnySave }) {
-    const [tab, setTab] = useState(TABS.INFO);
-    const [qty, setQty] = useState("0");
-    const [notesVisible, setNotesVisible] = useState(false);
-    const [notes, setNotes] = useState("");
+  const [tab, setTab] = useState(TABS.INFO);
+  const [qty, setQty] = useState("0");
+  const [notesVisible, setNotesVisible] = useState(false);
+  const [notes, setNotes] = useState("");
 
-    const [deleteVisible, setDeleteVisible] = useState(false);
-    const [deleting, setDeleting] = useState(false);
+  const [deleteVisible, setDeleteVisible] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
+  const { activeDatabaseId, openCreateModal } = useDatabase();
 
+  const title = useMemo(() => item?.model || "Component", [item?.model]);
+  if (!visible || !item || !activeDatabaseId) return null;
 
-    const title = useMemo(() => item?.model || "Component", [item?.model]);
-    if (!visible || !item) return null;
+  const qtyNum = Number.parseInt(qty || "0", 10) || 0;
 
+  const ensureDatabaseSelected = () => {
+    if (!activeDatabaseId) {
+      openCreateModal();
+      return false;
+    }
+    return true;
+  };
 
-    function startConfirm() {
-        const n = parseInt(qty || "0", 10);
-        if (!n || n === 0) {
-            Alert.alert("Enter a non-zero amount.");
-            return;
-        }
-        setNotes("");
-        setNotesVisible(true); // open compact notes modal directly
+  function startConfirm() {
+    const n = parseInt(qty || "0", 10);
+    if (!n || n === 0) {
+      Alert.alert("Enter a non-zero amount.");
+      return;
+    }
+    setNotes("");
+    setNotesVisible(true);
+  }
+
+  async function saveWithNotes() {
+    if (!ensureDatabaseSelected()) return;
+    const delta = qtyNum;
+
+    try {
+      const { error } = await supabase
+        .from("inventory_movements")
+        .insert([
+          {
+            database_id: activeDatabaseId,
+            component_id: item.id,
+            qty_delta: delta,
+            notes: notes?.trim() || null,
+          },
+        ]);
+      if (error) throw error;
+    } catch (e) {
+      return Alert.alert("Error", e.message || "Failed to save movement");
     }
 
-    async function saveWithNotes() {
-        const delta = qtyNum; // positive add, negative remove
-        try {
-            const { error } = await supabase
-                .from("inventory_movements")
-                .insert([{ component_id: item.id, qty_delta: delta, notes: notes?.trim() || null }]);
-            if (error) throw error;
-        } catch (e) {
-            return Alert.alert("Error", e.message || "Failed to save movement");
-        }
-        setNotesVisible(false);
-        setQty("0");
-        onAnySave?.();
+    setNotesVisible(false);
+    setQty("0");
+    onAnySave?.();
+  }
+
+  const bump = (delta) => {
+    const next = (Number.isFinite(qtyNum) ? qtyNum : 0) + delta;
+    setQty(String(next));
+  };
+
+  function openDeleteConfirm() {
+    setDeleteVisible(true);
+  }
+
+  async function performDelete() {
+    if (deleting || !ensureDatabaseSelected()) return;
+    setDeleting(true);
+    try {
+      const { error: movesErr } = await supabase
+        .from("inventory_movements")
+        .delete()
+        .eq("component_id", item.id)
+        .eq("database_id", activeDatabaseId);
+      if (movesErr) throw movesErr;
+
+      const { error: compErr } = await supabase
+        .from("components_catalog")
+        .delete()
+        .eq("id", item.id)
+        .eq("database_id", activeDatabaseId);
+      if (compErr) throw compErr;
+
+      setDeleteVisible(false);
+      onAnySave?.();
+      onClose?.();
+    } catch (e) {
+      Alert.alert("Error", e?.message || "Failed to delete component");
+    } finally {
+      setDeleting(false);
     }
+  }
 
-    // Helper inside the component (top-level of WarehouseModal)
-    const qtyNum = Number.parseInt(qty || "0", 10) || 0;
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modal, { height: "80%" }]}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>{title}</Text>
+            <Pressable onPress={onClose}>
+              <Ionicons name="close" size={24} color={colors.brand} />
+            </Pressable>
+          </View>
 
+          <View style={styles.tabsBar}>
+            {[TABS.INFO, TABS.HIST].map((t) => (
+              <Pressable
+                key={t}
+                onPress={() => setTab(t)}
+                style={[styles.tabItem, tab === t && styles.tabItemActive]}
+              >
+                <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>{t}</Text>
+              </Pressable>
+            ))}
+          </View>
 
-
-    const bump = (delta) => {
-        // allow up/down including negatives
-        const next = (Number.isFinite(qtyNum) ? qtyNum : 0) + delta;
-        setQty(String(next));
-    };
-
-
-
-    function openDeleteConfirm() {
-        setDeleteVisible(true);
-
-    }
-
-    async function performDelete() {
-        if (deleting) return;
-        setDeleting(true);
-        try {
-            // 1) Remove inventory history
-            const { error: movesErr } = await supabase
-                .from("inventory_movements")
-                .delete()
-                .eq("component_id", item.id);
-            if (movesErr) throw movesErr;
-
-            // 2) Delete the component itself
-            const { error: compErr } = await supabase
-                .from("components_catalog")
-                .delete()
-                .eq("id", item.id);
-            if (compErr) throw compErr;
-
-            setDeleteVisible(false);
-            onAnySave?.();
-            onClose?.();
-        } catch (e) {
-            Alert.alert("Error", e?.message || "Failed to delete component");
-        } finally {
-            setDeleting(false);
-        }
-    }
-
-
-
-
-
-    return (
-        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-            <View style={styles.modalOverlay}>
-                <View style={[styles.modal, { height: "80%" }]}>
-                    {/* Header (matches Asset modal) */}
-                    <View style={styles.modalHeader}>
-                        <Text style={styles.modalTitle}>{title}</Text>
-                        <Pressable onPress={onClose}>
-                            <Ionicons name="close" size={24} color={colors.brand} />
-                        </Pressable>
-                    </View>
-
-                    {/* Tabs */}
-                    <View style={styles.tabsBar}>
-                        {[TABS.INFO, TABS.HIST].map((t) => (
-                            <Pressable
-                                key={t}
-                                onPress={() => setTab(t)}
-                                style={[styles.tabItem, tab === t && styles.tabItemActive]}
-                            >
-                                <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>{t}</Text>
-                            </Pressable>
-                        ))}
-                    </View>
-
-                    {/* Body */}
-                    <ScrollView
-                        style={styles.modalScrollView}
-                        showsVerticalScrollIndicator={false}
-                        keyboardShouldPersistTaps="handled"
-                        contentContainerStyle={styles.scrollPadBottom}
-                    >
-                        <View style={styles.modalContent}>
-                            {tab === TABS.INFO ? <InfoTab item={item} onDelete={openDeleteConfirm} /> : <HistoricalTab item={item} />}
-                        </View>
-                    </ScrollView>
-
-                    {/* Footer */}
-                    <View style={styles.modalFooter}>
-                        {tab === TABS.INFO ? (
-                            <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
-                                {/* Row 1: -, qty, + (equal widths) */}
-                                <View style={{ flexDirection: "row", gap: 10 }}>
-                                    <Pressable
-                                        onPress={() => bump(-1)}
-                                        style={{
-                                            flex: 1,
-                                            height: 44,
-                                            borderRadius: 10,
-                                            borderWidth: 1,
-                                            borderColor: "#ddd",
-                                            backgroundColor: "white",
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                        }}
-                                    >
-                                        <Text style={{ fontSize: 20, fontWeight: "700" }}>−</Text>
-                                    </Pressable>
-
-                                    <TextInput
-                                        value={String(qty)}
-                                        onChangeText={setQty}
-                                        keyboardType="numeric"
-                                        inputMode="numeric"
-                                        placeholder="0"
-                                        placeholderTextColor="#888"
-                                        style={{
-                                            flex: 1,
-                                            height: 44,
-                                            borderRadius: 10,
-                                            borderWidth: 1,
-                                            borderColor: "#ddd",
-                                            backgroundColor: "#f9f9f9",
-                                            textAlign: "center",
-                                            fontSize: 16,
-                                            paddingHorizontal: 12,
-                                        }}
-                                    />
-
-                                    <Pressable
-                                        onPress={() => bump(1)}
-                                        style={{
-                                            flex: 1,
-                                            height: 44,
-                                            borderRadius: 10,
-                                            borderWidth: 1,
-                                            borderColor: "#ddd",
-                                            backgroundColor: "white",
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                        }}
-                                    >
-                                        <Text style={{ fontSize: 20, fontWeight: "700" }}>＋</Text>
-                                    </Pressable>
-                                </View>
-
-                                {/* Row 2: Confirm (only when qty !== 0) */}
-                                {qtyNum !== 0 ? (
-                                    <Pressable
-                                        onPress={() => startConfirm(qtyNum > 0 ? 1 : -1)}
-                                        style={{
-                                            marginTop: 10,
-                                            height: 46,
-                                            borderRadius: 12,
-                                            backgroundColor: colors.primary,
-                                            flexDirection: "row",
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                        }}
-                                    >
-                                        <Ionicons name="checkmark" size={18} color="#fff" style={{ marginRight: 8 }} />
-                                        <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>Confirm</Text>
-                                    </Pressable>
-                                ) : null}
-                            </View>
-                        ) : (
-                            <View style={[styles.buttonContainer, { minHeight: 40 }]} />
-                        )}
-                    </View>
-
-                    {/* Notes mini-modal (appears after Confirm) */}
-                    <Modal
-                        visible={notesVisible}
-                        transparent
-                        animationType="fade"
-                        onRequestClose={() => setNotesVisible(false)}
-                    >
-                        <View style={[styles.modalOverlay, { justifyContent: "center", alignItems: "center" }]}>
-                            <View
-                                style={{
-                                    // compact card — no flex, no large height
-                                    width: 420,
-                                    maxWidth: "92%",
-                                    borderRadius: 16,
-                                    backgroundColor: "#fff",
-                                    padding: 16,
-                                    // slight shadow (web + native)
-                                    shadowColor: "#000",
-                                    shadowOpacity: 0.15,
-                                    shadowRadius: 12,
-                                    shadowOffset: { width: 0, height: 4 },
-                                    elevation: 6,
-                                }}
-                            >
-                                {/* Header */}
-                                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                                    <Text style={{ fontSize: 20, fontWeight: "800", color: "#111" }}>Add notes</Text>
-                                    <Pressable onPress={() => setNotesVisible(false)}>
-                                        <Ionicons name="close" size={22} color={colors.brand} />
-                                    </Pressable>
-                                </View>
-
-                                {/* Body */}
-                                <View>
-                                    <Text style={{ marginBottom: 8, color: "#333", fontWeight: "600" }}>Notes (optional)</Text>
-                                    <TextInput
-                                        value={notes}
-                                        onChangeText={setNotes}
-                                        placeholder=" "
-                                        placeholderTextColor="#888"
-                                        multiline
-                                        style={{
-                                            minHeight: 90,
-                                            borderWidth: 1,
-                                            borderColor: "#ddd",
-                                            borderRadius: 10,
-                                            backgroundColor: "#f9f9f9",
-                                            padding: 12,
-                                            textAlignVertical: "top",
-                                        }}
-                                    />
-                                </View>
-
-                                {/* Footer */}
-                                <View style={{ flexDirection: "row", marginTop: 12 }}>
-                                    <Pressable
-                                        style={[styles.cancelButton, { flex: 1, marginRight: 8 }]}
-                                        onPress={() => setNotesVisible(false)}
-                                    >
-                                        <Text style={styles.cancelButtonText}>Cancel</Text>
-                                    </Pressable>
-                                    <Pressable
-                                        style={[styles.saveButton, { flex: 1, marginLeft: 8 }]}
-                                        onPress={saveWithNotes}
-                                    >
-                                        <Text style={styles.saveButtonText}>Save</Text>
-                                    </Pressable>
-                                </View>
-                            </View>
-                        </View>
-                    </Modal>
-
-                    {/* Delete confirm mini-modal */}
-                    <Modal
-                        visible={deleteVisible}
-                        transparent
-                        animationType="fade"
-                        onRequestClose={() => setDeleteVisible(false)}
-                    >
-                        <View style={[styles.modalOverlay, { justifyContent: "center", alignItems: "center" }]}>
-                            <View
-                                style={{
-                                    width: 420,
-                                    maxWidth: "92%",
-                                    borderRadius: 16,
-                                    backgroundColor: "#fff",
-                                    padding: 16,
-                                    shadowColor: "#000",
-                                    shadowOpacity: 0.15,
-                                    shadowRadius: 12,
-                                    shadowOffset: { width: 0, height: 4 },
-                                    elevation: 6,
-                                }}
-                            >
-                                {/* Header */}
-                                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                                    <Text style={{ fontSize: 20, fontWeight: "800", color: "#111" }}>Delete component?</Text>
-                                    <Pressable onPress={() => setDeleteVisible(false)}>
-                                        <Ionicons name="close" size={22} color={colors.brand} />
-                                    </Pressable>
-                                </View>
-
-                                {/* Body */}
-                                <View>
-                                    <Text style={{ color: "#333" }}>
-                                        This will permanently remove <Text style={{ fontWeight: "700" }}>{item.model}</Text> and all links/history. This action cannot be undone.
-                                    </Text>
-                                </View>
-
-                                {/* Footer */}
-                                <View style={{ flexDirection: "row", marginTop: 12 }}>
-                                    <Pressable
-                                        style={[styles.cancelButton, { flex: 1, marginRight: 8 }]}
-                                        onPress={() => setDeleteVisible(false)}
-                                        disabled={deleting}
-                                    >
-                                        <Text style={styles.cancelButtonText}>Cancel</Text>
-                                    </Pressable>
-                                    <Pressable
-                                        onPress={performDelete}
-                                        disabled={deleting}
-                                        style={[styles.saveButton, { flex: 1, marginLeft: 8, backgroundColor: "#B00020" }]}
-                                    >
-                                        <Text style={styles.saveButtonText}>{deleting ? "Deleting…" : "Delete"}</Text>
-                                    </Pressable>
-                                </View>
-                            </View>
-                        </View>
-                    </Modal>
-
-
-                </View>
+          <ScrollView
+            style={styles.modalScrollView}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.scrollPadBottom}
+          >
+            <View style={styles.modalContent}>
+              {tab === TABS.INFO ? (
+                <InfoTab item={item} onDelete={openDeleteConfirm} />
+              ) : (
+                <HistoricalTab item={item} />
+              )}
             </View>
-        </Modal>
-    );
+          </ScrollView>
+
+          <View style={styles.modalFooter}>
+            {tab === TABS.INFO ? (
+              <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <Pressable
+                    onPress={() => bump(-1)}
+                    style={{
+                      flex: 1,
+                      height: 44,
+                      borderRadius: 10,
+                      borderWidth: 1,
+                      borderColor: "#ddd",
+                      backgroundColor: "white",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Text style={{ fontSize: 20, fontWeight: "700" }}>−</Text>
+                  </Pressable>
+
+                  <TextInput
+                    value={String(qty)}
+                    onChangeText={setQty}
+                    keyboardType="numeric"
+                    inputMode="numeric"
+                    placeholder="0"
+                    placeholderTextColor="#888"
+                    style={{
+                      flex: 1,
+                      height: 44,
+                      borderRadius: 10,
+                      borderWidth: 1,
+                      borderColor: "#ddd",
+                      backgroundColor: "#f9f9f9",
+                      textAlign: "center",
+                      fontSize: 16,
+                      paddingHorizontal: 12,
+                    }}
+                  />
+
+                  <Pressable
+                    onPress={() => bump(1)}
+                    style={{
+                      flex: 1,
+                      height: 44,
+                      borderRadius: 10,
+                      borderWidth: 1,
+                      borderColor: "#ddd",
+                      backgroundColor: "white",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Text style={{ fontSize: 20, fontWeight: "700" }}>＋</Text>
+                  </Pressable>
+                </View>
+
+                {qtyNum !== 0 ? (
+                  <Pressable
+                    onPress={() => startConfirm(qtyNum > 0 ? 1 : -1)}
+                    style={{
+                      marginTop: 10,
+                      height: 46,
+                      borderRadius: 12,
+                      backgroundColor: colors.primary,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Ionicons name="checkmark" size={18} color="#fff" style={{ marginRight: 8 }} />
+                    <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>Confirm</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : (
+              <View style={[styles.buttonContainer, { minHeight: 40 }]} />
+            )}
+          </View>
+
+          <Modal
+            visible={notesVisible}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setNotesVisible(false)}
+          >
+            <View
+              style={[
+                styles.modalOverlay,
+                { justifyContent: "center", alignItems: "center" },
+              ]}
+            >
+              <View
+                style={{
+                  width: 420,
+                  maxWidth: "92%",
+                  borderRadius: 16,
+                  backgroundColor: "#fff",
+                  padding: 16,
+                  shadowColor: "#000",
+                  shadowOpacity: 0.1,
+                  shadowRadius: 8,
+                  elevation: 8,
+                }}
+              >
+                <Text style={{ fontWeight: "700", fontSize: 16, marginBottom: 12 }}>
+                  Notes (optional)
+                </Text>
+                <TextInput
+                  value={notes}
+                  onChangeText={setNotes}
+                  placeholder="Add context for this movement"
+                  placeholderTextColor="#999"
+                  multiline
+                  style={{
+                    minHeight: 80,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: "#ddd",
+                    padding: 12,
+                    textAlignVertical: "top",
+                  }}
+                />
+
+                <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 12, gap: 10 }}>
+                  <Pressable onPress={() => setNotesVisible(false)}>
+                    <Text style={{ color: "#6b7280", fontWeight: "600" }}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={saveWithNotes}
+                    style={{
+                      backgroundColor: colors.primary,
+                      borderRadius: 10,
+                      paddingHorizontal: 16,
+                      paddingVertical: 10,
+                    }}
+                  >
+                    <Text style={{ color: "white", fontWeight: "600" }}>Save</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          </Modal>
+
+          <Modal
+            visible={deleteVisible}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setDeleteVisible(false)}
+          >
+            <View
+              style={[
+                styles.modalOverlay,
+                { justifyContent: "center", alignItems: "center" },
+              ]}
+            >
+              <View
+                style={{
+                  width: 360,
+                  maxWidth: "92%",
+                  borderRadius: 16,
+                  backgroundColor: "#fff",
+                  padding: 20,
+                  shadowColor: "#000",
+                  shadowOpacity: 0.1,
+                  shadowRadius: 8,
+                  elevation: 8,
+                }}
+              >
+                <Text style={{ fontWeight: "700", fontSize: 18, marginBottom: 10 }}>
+                  Delete Component?
+                </Text>
+                <Text style={{ color: "#4b5563", marginBottom: 16 }}>
+                  This will remove the component and its movement history.
+                </Text>
+
+                <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 10 }}>
+                  <Pressable onPress={() => setDeleteVisible(false)}>
+                    <Text style={{ color: "#6b7280", fontWeight: "600" }}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={performDelete}
+                    disabled={deleting}
+                    style={{
+                      backgroundColor: "#dc2626",
+                      borderRadius: 10,
+                      paddingHorizontal: 16,
+                      paddingVertical: 10,
+                      opacity: deleting ? 0.6 : 1,
+                    }}
+                  >
+                    <Text style={{ color: "white", fontWeight: "600" }}>
+                      {deleting ? "Deleting…" : "Delete"}
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          </Modal>
+        </View>
+      </View>
+    </Modal>
+  );
 }

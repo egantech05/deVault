@@ -1,23 +1,24 @@
-
+// services/templatesApi.js
 import { supabase } from '../lib/supabase';
 import { TEMPLATE_KINDS } from './templateKinds';
 
-// optional: normalize types before save
 const castDefaultByType = (type, v) => {
     if (v == null || v === '') return null;
     if (type === 'number') {
         const n = Number(v);
         return Number.isFinite(n) ? n : null;
     }
-    if (type === 'date') return String(v); // expect YYYY-MM-DD
-    return String(v); // text
+    if (type === 'date') return String(v);
+    return String(v);
 };
 
-export async function listTemplates(kind) {
+export async function listTemplates(kind, databaseId) {
+    if (!databaseId) return [];
     const cfg = TEMPLATE_KINDS[kind];
     const { data, error } = await supabase
         .from(cfg.templatesTable)
         .select(`id, name, ${cfg.relation}(count)`)
+        .eq('database_id', databaseId)
         .order('name', { ascending: true });
 
     if (error) throw error;
@@ -48,12 +49,12 @@ export async function getTemplateFields(kind, templateId) {
     }));
 }
 
-export async function createTemplate(kind, { name, properties }) {
+export async function createTemplate(kind, { databaseId, name, properties }) {
     const cfg = TEMPLATE_KINDS[kind];
 
     const { data: tpl, error: tplError } = await supabase
         .from(cfg.templatesTable)
-        .insert([{ name }])
+        .insert([{ name, database_id: databaseId }])
         .select('id')
         .single();
     if (tplError) throw tplError;
@@ -75,9 +76,13 @@ export async function createTemplate(kind, { name, properties }) {
     return tpl.id;
 }
 
-export async function updateTemplateName(kind, id, name) {
+export async function updateTemplateName(kind, id, name, databaseId) {
     const cfg = TEMPLATE_KINDS[kind];
-    const { error } = await supabase.from(cfg.templatesTable).update({ name }).eq('id', id);
+    const { error } = await supabase
+        .from(cfg.templatesTable)
+        .update({ name })
+        .eq('id', id)
+        .eq('database_id', databaseId);
     if (error) throw error;
 }
 
@@ -123,8 +128,12 @@ export async function archiveFields(kind, ids) {
     if (error) throw error;
 }
 
-export async function deleteTemplate(kind, id) {
+export async function deleteTemplate(kind, id, databaseId) {
     const cfg = TEMPLATE_KINDS[kind];
-    const { error } = await supabase.from(cfg.templatesTable).delete().eq('id', id);
+    const { error } = await supabase
+        .from(cfg.templatesTable)
+        .delete()
+        .eq('id', id)
+        .eq('database_id', databaseId);
     if (error) throw error;
 }
