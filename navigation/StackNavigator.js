@@ -5,6 +5,7 @@ import AssetsScreen from "../screens/AssetsScreen.js";
 import LogTemplatesScreen from "../screens/LogTemplatesScreen.js";
 import WarehouseScreen from "../screens/WarehouseScreen.js";
 import LinkedDocsScreen from "../screens/LinkedDocsScreen.js";
+import TeamScreen from "../screens/TeamScreen.js";
 import ResponsiveLayout from "../components/ResponsiveLayout";
 import AuthGuard from "../components/AuthGuard";
 
@@ -40,6 +41,12 @@ const LinkedDocsScreenWithLayout = () => (
   </ResponsiveLayout>
 );
 
+const TeamScreenWithLayout = () => (
+  <ResponsiveLayout>
+    <TeamScreen />
+  </ResponsiveLayout>
+);
+
 
 
 export default function StackNavigator() {
@@ -51,6 +58,7 @@ export default function StackNavigator() {
         <Stack.Screen name="LogTemplates" component={LogTemplatesScreenWithLayout} />
         <Stack.Screen name="Warehouse" component={WarehouseScreenWithLayout} />
         <Stack.Screen name="LinkedDocs" component={LinkedDocsScreenWithLayout} />
+        <Stack.Screen name="Team" component={TeamScreenWithLayout} />
         
       </Stack.Navigator>
     </AuthGuard>

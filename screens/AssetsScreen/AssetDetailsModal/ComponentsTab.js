@@ -4,12 +4,18 @@ import { View, Text, Pressable, FlatList, ActivityIndicator, Platform, Alert, St
 import { Ionicons } from "@expo/vector-icons";
 import { useComponents } from "../../../hooks/useComponents";
 import AddComponentModal from "../AddComponentModal";
+import { useDatabase } from "../../../contexts/DatabaseContext";
 
 export default function ComponentsTab({ asset, styles, colors }) {
     const { items, loading, remove, create, searchCatalog } = useComponents(asset.id);
+    const { canDelete } = useDatabase();
     const [isModal, setIsModal] = useState(false);
 
     const handleDelete = async (id) => {
+        if (!canDelete) {
+            Alert.alert("Permission", "Only admins can delete components.");
+            return;
+        }
         try {
             await remove(id);           // await to catch errors
         } catch (e) {
@@ -18,6 +24,10 @@ export default function ComponentsTab({ asset, styles, colors }) {
     };
 
     const confirmDelete = (id) => {
+        if (!canDelete) {
+            Alert.alert("Permission", "Only admins can delete components.");
+            return;
+        }
         if (Platform.OS === "web") {
             if (window.confirm("Remove component? This will detach it from the asset.")) {
                 handleDelete(id);
@@ -55,13 +65,15 @@ export default function ComponentsTab({ asset, styles, colors }) {
                                 {!!item.description && <Text style={local.rowSub}>{item.description}</Text>}
                             </View>
 
-                            <Pressable
-                                onPress={() => confirmDelete(item.id)}
-                                hitSlop={12}
-                                style={local.rightAction}
-                            >
-                                <Ionicons name="trash-outline" size={20} color="#ff4444" />
-                            </Pressable>
+                            {canDelete ? (
+                                <Pressable
+                                    onPress={() => confirmDelete(item.id)}
+                                    hitSlop={12}
+                                    style={local.rightAction}
+                                >
+                                    <Ionicons name="trash-outline" size={20} color="#ff4444" />
+                                </Pressable>
+                            ) : null}
                         </View>
                     )}
                 />

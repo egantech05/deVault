@@ -40,7 +40,7 @@ export default function LogTemplatesScreen() {
   const [templateName, setTemplateName] = useState("");
   const [nameTouched, setNameTouched] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { activeDatabaseId, openCreateModal } = useDatabase();
+  const { activeDatabaseId, openCreateModal, canDelete } = useDatabase();
 
   // Create modal fields
   const [properties, setProperties] = useState([
@@ -251,6 +251,28 @@ export default function LogTemplatesScreen() {
     } catch (e) {
       console.error("saveTemplateEdits error:", e);
       Alert.alert("Error", e.message || "Failed to save template changes.");
+    }
+  };
+
+  const deleteTemplate = async () => {
+    if (!selectedTemplate) return;
+    if (!canDelete) {
+      Alert.alert("Permission", "Only admins can delete templates.");
+      return;
+    }
+    if (!activeDatabaseId) {
+      openCreateModal();
+      return;
+    }
+    try {
+      await deleteTemplateApi(KIND, selectedTemplate.id, activeDatabaseId);
+      Alert.alert("Deleted", "Template removed.");
+      setDetailsVisible(false);
+      setSelectedTemplate(null);
+      await loadTemplates();
+    } catch (e) {
+      console.error("delete template error:", e);
+      Alert.alert("Error", "Failed to delete template.");
     }
   };
 
@@ -497,27 +519,16 @@ export default function LogTemplatesScreen() {
 
             <View style={styles.modalFooter}>
               <View style={styles.buttonContainer}>
-                <Pressable
-                  style={[styles.cancelButton, { borderColor: "#ff4444" }]}
-                  onPress={async () => {
-                    if (!selectedTemplate) return;
-                    try {
-                      await deleteTemplateApi(KIND, selectedTemplate.id,activeDatabaseId);
-                    } catch (e) {
-                      console.error("delete template error:", e);
-                      Alert.alert("Error", "Failed to delete template.");
-                      return;
-                    }
-                    Alert.alert("Deleted", "Template removed.");
-                    setDetailsVisible(false);
-                    setSelectedTemplate(null);
-                    await loadTemplates();
-                  }}
-                >
-                  <Text style={[styles.cancelButtonText, { color: "#ff4444" }]}>
-                    Delete Template
-                  </Text>
-                </Pressable>
+                {canDelete ? (
+                  <Pressable
+                    style={[styles.cancelButton, { borderColor: "#ff4444" }]}
+                    onPress={deleteTemplate}
+                  >
+                    <Text style={[styles.cancelButtonText, { color: "#ff4444" }]}>
+                      Delete Template
+                    </Text>
+                  </Pressable>
+                ) : null}
                 <Pressable
                   style={[styles.saveButton, { marginLeft: 8 }]}
                   onPress={saveTemplateEdits}

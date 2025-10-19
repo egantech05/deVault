@@ -33,14 +33,31 @@ export default function LoginScreen({ navigation }) {
     setLoading(true);
     setLoginError('');
     try {
+      const trimmedEmail = email.trim();
+
+      let userExists = true;
+      try {
+        const { data: existsResult, error: existsErr } = await supabase.rpc('user_exists_by_email', {
+          user_email: trimmedEmail,
+        });
+        if (!existsErr && existsResult === false) {
+          userExists = false;
+        }
+      } catch (_lookupErr) {
+        // Ignore lookup failures so we still fall back to Supabase auth.
+      }
+
+      if (!userExists) {
+        setLoginError('User not found. Proceed with signing up new account');
+        return;
+      }
+
       const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+        email: trimmedEmail,
         password: password,
       });
 
       if (error) {
-        console.log('Login error:', error.message);
-        
         // Handle specific error cases
         if (error.message.includes('Invalid login credentials') || 
             error.message.includes('Invalid email or password') ||

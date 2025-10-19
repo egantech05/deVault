@@ -43,7 +43,7 @@ export default function WarehouseModal({ visible, onClose, item, onAnySave }) {
   const [deleting, setDeleting] = useState(false);
   const [currentItem, setCurrentItem] = useState(item);
 
-  const { activeDatabaseId, openCreateModal } = useDatabase();
+  const { activeDatabaseId, openCreateModal, canDelete } = useDatabase();
 
   useEffect(() => {
     setCurrentItem(item);
@@ -110,10 +110,12 @@ export default function WarehouseModal({ visible, onClose, item, onAnySave }) {
   };
 
   function openDeleteConfirm() {
+    if (!canDelete) return;
     setDeleteVisible(true);
   }
 
   async function performDelete() {
+    if (!canDelete) return;
     if (deleting || !ensureDatabaseSelected()) return;
     setDeleting(true);
     try {
@@ -166,18 +168,20 @@ export default function WarehouseModal({ visible, onClose, item, onAnySave }) {
             </View>
             <Pressable
               onPress={openDeleteConfirm}
-              disabled={deleting}
+              disabled={deleting || !canDelete}
               accessibilityLabel={deleting ? "Deleting component" : "Delete component"}
               style={({ pressed }) => [
                 styles.deleteInlineBtn,
-                pressed && !deleting && { opacity: 0.85 },
-                deleting && { opacity: 0.6 },
+                pressed && !deleting && canDelete && { opacity: 0.85 },
+                (deleting || !canDelete) && { opacity: 0.6 },
               ]}
             >
               {deleting ? (
                 <Text style={styles.deleteInlineText}>Deleting…</Text>
-              ) : (
+              ) : canDelete ? (
                 <Ionicons name="trash-outline" size={18} color="#dc2626" />
+              ) : (
+                <Ionicons name="lock-closed" size={18} color="#9ca3af" />
               )}
             </Pressable>
           </View>

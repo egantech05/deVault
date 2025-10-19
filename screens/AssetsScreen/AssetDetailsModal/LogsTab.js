@@ -39,7 +39,7 @@ function getOrderedFieldsForModal(log) {
 }
 
 export default function LogsTab({ asset }) {
-  const { activeDatabaseId, openCreateModal } = useDatabase();
+  const { activeDatabaseId, openCreateModal, canDelete } = useDatabase();
 
   const [logTemplates, setLogTemplates] = useState([]);
   const [loadingLogTemplates, setLoadingLogTemplates] = useState(false);
@@ -224,6 +224,10 @@ export default function LogsTab({ asset }) {
   };
 
   const handleDeleteLog = async (logId) => {
+    if (!canDelete) {
+      Alert.alert("Permission", "Only admins can delete logs.");
+      return;
+    }
     if (!ensureDatabaseSelected()) return;
     try {
       const { error } = await deleteLogById(activeDatabaseId, logId);
@@ -363,18 +367,20 @@ export default function LogsTab({ asset }) {
 
               <View style={styles.logRowActionColumn}>
                 <Text style={styles.logRowTime}>{new Date(item.created_at).toLocaleString()}</Text>
-                <Pressable
-                  style={styles.deleteLogButton}
-                  hitSlop={8}
-                  onPress={() =>
-                    Alert.alert("Delete Log", "Remove this log entry?", [
-                      { text: "Cancel", style: "cancel" },
-                      { text: "Delete", style: "destructive", onPress: () => handleDeleteLog(item.id) },
-                    ])
-                  }
-                >
-                  <Ionicons name="trash-outline" size={18} color="#ff5555" />
-                </Pressable>
+                {canDelete ? (
+                  <Pressable
+                    style={styles.deleteLogButton}
+                    hitSlop={8}
+                    onPress={() =>
+                      Alert.alert("Delete Log", "Remove this log entry?", [
+                        { text: "Cancel", style: "cancel" },
+                        { text: "Delete", style: "destructive", onPress: () => handleDeleteLog(item.id) },
+                      ])
+                    }
+                  >
+                    <Ionicons name="trash-outline" size={18} color="#ff5555" />
+                  </Pressable>
+                ) : null}
               </View>
             </View>
           );

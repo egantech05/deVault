@@ -44,13 +44,14 @@ export default function ResponsiveLayout({ children, title = "deVault" }) {
         )}
 
         <View style={styles.contentArea}>
-          {dbLoading ? (
+          {hasDatabase ? (
+            // If a database is already active, keep showing content even while refreshing
+            children
+          ) : dbLoading ? (
             <View style={styles.centerWrap}>
               <ActivityIndicator size="large" color={colors.brand} />
               <Text style={styles.centerText}>Loading databases…</Text>
             </View>
-          ) : hasDatabase ? (
-            children
           ) : (
             <View style={styles.centerWrap}>
               <Text style={styles.centerTitle}>Create a database to get started</Text>

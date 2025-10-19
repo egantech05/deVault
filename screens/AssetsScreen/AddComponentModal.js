@@ -24,7 +24,11 @@ export default function AddComponentModal({ visible, onClose, onCreate, searchCa
     // Debounced suggestions using the hook-provided searchCatalog
     useEffect(() => {
         if (!visible) return;
-        const term = `${(model || "").trim()} ${(manufacturer || "").trim()}`.trim();
+        const termModel = (model || "").trim();
+        const termManu = (manufacturer || "").trim();
+        // Use either model or manufacturer as the search term (not both),
+        // so the catalog query still returns matches to evaluate exact picks.
+        const term = termModel || termManu;
         if (!term) { setSuggestions([]); setPicked(null); return; }
 
         const t = setTimeout(async () => {
@@ -52,6 +56,7 @@ export default function AddComponentModal({ visible, onClose, onCreate, searchCa
     }, [visible, model, manufacturer, searchCatalog]);
 
     const canSave = useMemo(() => !!model.trim() && !saving, [model, saving]);
+    const isExisting = !!picked?.id;
 
     async function handleSave() {
         if (!model.trim()) return Alert.alert("Model is required");
@@ -106,7 +111,10 @@ export default function AddComponentModal({ visible, onClose, onCreate, searchCa
                                 <TextInput
                                     style={styles.input}
                                     value={model}
-                                    onChangeText={(t) => { setModel(t); setPicked(null); }}
+                                    onChangeText={(t) => {
+                                        setModel(t);
+                                        setPicked(null);
+                                    }}
                                     placeholder=" "
                                     placeholderTextColor="#888"
                                 />
@@ -144,26 +152,45 @@ export default function AddComponentModal({ visible, onClose, onCreate, searchCa
                             {/* Manufacturer */}
                             <View style={styles.inputGroup}>
                                 <Text style={styles.label}>Manufacturer</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    value={manufacturer}
-                                    onChangeText={(t) => { setManufacturer(t); setPicked(null); }}
-                                    placeholder=" "
-                                    placeholderTextColor="#888"
-                                />
+                                {isExisting ? (
+                                    <View style={[styles.input, styles.readonlyInput, readonlyBox]}>
+                                        <Text style={readonlyText}>
+                                            {manufacturer ? manufacturer : "N/A"}
+                                        </Text>
+                                    </View>
+                                ) : (
+                                    <TextInput
+                                        style={styles.input}
+                                        value={manufacturer}
+                                        onChangeText={(t) => {
+                                            setManufacturer(t);
+                                            setPicked(null);
+                                        }}
+                                        placeholder=" "
+                                        placeholderTextColor="#888"
+                                    />
+                                )}
                             </View>
 
                             {/* Description */}
                             <View style={styles.inputGroup}>
                                 <Text style={styles.label}>Description</Text>
-                                <TextInput
-                                    style={[styles.input, { minHeight: 90 }]}
-                                    value={description}
-                                    onChangeText={setDescription}
-                                    multiline
-                                    placeholder=" "
-                                    placeholderTextColor="#888"
-                                />
+                                {isExisting ? (
+                                    <View style={[styles.input, { minHeight: 90 }, styles.readonlyInput, readonlyMultiline]}>
+                                        <Text style={readonlyText}>
+                                            {description ? description : "N/A"}
+                                        </Text>
+                                    </View>
+                                ) : (
+                                    <TextInput
+                                        style={[styles.input, { minHeight: 90 }]}
+                                        value={description}
+                                        onChangeText={setDescription}
+                                        multiline
+                                        placeholder=" "
+                                        placeholderTextColor="#888"
+                                    />
+                                )}
                             </View>
                         </View>
                     </ScrollView>
@@ -211,3 +238,6 @@ const suggestItemLight = {
 };
 const suggestTextMainLight = { color: "#111", fontWeight: "700" };
 const suggestTextDimLight = { color: "#666", fontSize: 12 };
+const readonlyBox = { justifyContent: "center" };
+const readonlyMultiline = { justifyContent: "flex-start", paddingVertical: 12 };
+const readonlyText = { fontSize: 16, color: "#333" };

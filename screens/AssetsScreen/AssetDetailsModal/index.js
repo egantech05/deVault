@@ -7,12 +7,14 @@ import DocsTab from "./DocsTab";
 import ComponentsTab from "./ComponentsTab";
 import { colors } from "../../../components/Styles";
 import styles from "../styles";
+import { useDatabase } from "../../../contexts/DatabaseContext";
 
 const TABS = { INFO: "Info", LOGS: "Logs", DOCS: "Documents", COMPS: "Components" };
 
 export default function AssetDetailsModal({ visible, onClose, asset, onAnySave }) {
     const [tab, setTab] = useState(TABS.INFO);
     const infoRef = useRef(null);
+    const { canDelete } = useDatabase();
 
     // NEW: mirror InfoTab states so this component re-renders
     const [isInfoEditing, setIsInfoEditing] = useState(false);
@@ -88,7 +90,7 @@ export default function AssetDetailsModal({ visible, onClose, asset, onAnySave }
                             ))}
                         </View>
 
-                        {tab === TABS.INFO && (
+                        {tab === TABS.INFO && canDelete && (
                             <Pressable
                                 onPress={() => infoRef.current?.remove?.()}
                                 style={styles.tabActionButton}

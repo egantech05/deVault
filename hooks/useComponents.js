@@ -42,42 +42,64 @@ export function useComponents(assetId) {
   }, [assetId, activeDatabaseId]);
 
   const create = useCallback(
-    async ({ model, manufacturer, description }) => {
+    async ({ catalog_id, model, manufacturer, description }) => {
       if (!activeDatabaseId) {
         openCreateModal();
         throw new Error("Select a database before adding components.");
       }
 
-      const trimmedModel = (model || "").trim();
-      const trimmedManufacturer = (manufacturer || "").trim();
-      const trimmedDescription = (description || "").trim();
+      // Two modes:
+      // 1) Link an existing catalog row (catalog_id provided)
+      // 2) Create or reuse by model/manufacturer
 
-      if (!trimmedModel) throw new Error("Model is required");
+      let catalogId = catalog_id;
+      let trimmedModel = (model || "").trim();
+      let trimmedManufacturer = (manufacturer || "").trim();
+      let trimmedDescription = (description || "").trim();
 
-      const { data: existing, error: lookupErr } = await supabase
-        .from("components_catalog")
-        .select("id")
-        .eq("database_id", activeDatabaseId)
-        .eq("model", trimmedModel)
-        .eq("manufacturer", trimmedManufacturer || null)
-        .maybeSingle();
-      if (lookupErr) throw lookupErr;
-
-      let catalogId = existing?.id;
-
-      if (!catalogId) {
-        const { data: created, error: catalogErr } = await supabase
+      if (catalogId) {
+        // Fetch the catalog row for display fields; also validates DB ownership
+        const { data: row, error: catErr } = await supabase
           .from("components_catalog")
-          .insert([{
-            database_id: activeDatabaseId,
-            model: trimmedModel,
-            manufacturer: trimmedManufacturer || null,
-            description: trimmedDescription || null,
-          }])
+          .select("id, database_id, model, manufacturer, description")
+          .eq("id", catalogId)
+          .maybeSingle();
+        if (catErr) throw catErr;
+        if (!row) throw new Error("Selected component not found");
+        if (row.database_id !== activeDatabaseId) {
+          throw new Error("Selected component belongs to a different database.");
+        }
+        trimmedModel = (row.model || "").trim();
+        trimmedManufacturer = (row.manufacturer || "").trim();
+        trimmedDescription = (row.description || "").trim();
+      } else {
+        if (!trimmedModel) throw new Error("Model is required");
+
+        const { data: existing, error: lookupErr } = await supabase
+          .from("components_catalog")
           .select("id")
-          .single();
-        if (catalogErr) throw catalogErr;
-        catalogId = created.id;
+          .eq("database_id", activeDatabaseId)
+          .eq("model", trimmedModel)
+          .eq("manufacturer", trimmedManufacturer || null)
+          .maybeSingle();
+        if (lookupErr) throw lookupErr;
+
+        catalogId = existing?.id;
+
+        if (!catalogId) {
+          const { data: created, error: catalogErr } = await supabase
+            .from("components_catalog")
+            .insert([{
+              database_id: activeDatabaseId,
+              model: trimmedModel,
+              manufacturer: trimmedManufacturer || null,
+              description: trimmedDescription || null,
+            }])
+            .select("id")
+            .single();
+          if (catalogErr) throw catalogErr;
+          catalogId = created.id;
+        }
       }
 
       const { data: existingLink, error: linkCheckErr } = await supabase

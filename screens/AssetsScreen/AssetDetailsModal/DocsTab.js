@@ -14,7 +14,7 @@ function splitStoragePath(storage_path) {
 }
 
 export default function DocsTab({ asset, styles, colors }) {
-  const { activeDatabaseId, openCreateModal } = useDatabase();
+  const { activeDatabaseId, openCreateModal, canDelete } = useDatabase();
 
   const [docs, setDocs] = useState([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
@@ -225,6 +225,10 @@ export default function DocsTab({ asset, styles, colors }) {
   }, []);
 
   const deleteDocument = async (doc) => {
+    if (!canDelete) {
+      Alert.alert("Permission", "Only admins can delete documents.");
+      return;
+    }
     const doDelete = async () => {
       try {
         const { error: delObjErr } = await supabase.storage
@@ -297,11 +301,13 @@ export default function DocsTab({ asset, styles, colors }) {
               <Text style={styles.docName}>{doc.name}</Text>
               <Text style={styles.docMeta}>{doc.mime_type || ""}</Text>
             </View>
-            <Pressable onPress={() => deleteDocument(doc)} style={styles.docDeleteButton}>
-              <Ionicons name="trash-outline" size={18} color="#ff5555" />
-            </Pressable>
-          </Pressable>
-        ))
+            {canDelete ? (
+              <Pressable onPress={() => deleteDocument(doc)} style={styles.docDeleteButton}>
+                <Ionicons name="trash-outline" size={18} color="#ff5555" />
+              </Pressable>
+            ) : null}
+         </Pressable>
+       ))
       )}
 
       <View style={[styles.docsHeaderRow, { marginTop: 24 }]}>

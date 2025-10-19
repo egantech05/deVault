@@ -222,7 +222,18 @@ export default function WarehouseScreen() {
         </Pressable>
       </View>
 
-      {loading ? (
+      {showHistorical ? (
+        !loading && (
+          <View style={styles.historySection}>
+            <FlatList
+              data={moves}
+              keyExtractor={(item) => item.id}
+              renderItem={renderMove}
+              style={{ maxHeight: 320 }}
+            />
+          </View>
+        )
+      ) : loading ? (
         <ActivityIndicator style={{ marginTop: 16 }} />
       ) : (
         <FlatList
@@ -252,17 +263,7 @@ export default function WarehouseScreen() {
         onCreated={loadComponents}
       />
 
-      {showHistorical && !loading && (
-        <View style={styles.historySection}>
-          <Text style={styles.historyTitle}>Recent Movements</Text>
-          <FlatList
-            data={moves}
-            keyExtractor={(item) => item.id}
-            renderItem={renderMove}
-            style={{ maxHeight: 320 }}
-          />
-        </View>
-      )}
+      {false}
     </View>
   );
 }

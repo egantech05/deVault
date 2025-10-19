@@ -172,9 +172,7 @@ const styles = StyleSheet.create({
     saveButtonText: { textAlign: "center", color: "white", fontWeight: "bold" },
 
     deleteInlineBtn: {
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: "#dc2626",
+ 
         paddingVertical: 8,
         paddingHorizontal: 14,
         backgroundColor: "white",

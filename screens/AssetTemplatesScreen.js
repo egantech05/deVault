@@ -18,7 +18,7 @@ const KIND = 'asset';
 
 export default function AssetTemplatesScreen() {
   const { width } = useWindowDimensions();
-  const { activeDatabaseId, openCreateModal } = useDatabase();
+  const { activeDatabaseId, openCreateModal, canDelete } = useDatabase();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -188,6 +188,10 @@ export default function AssetTemplatesScreen() {
   };
 
   const deleteTemplate = async () => {
+    if (!canDelete) {
+      Alert.alert('Permission', 'Only admins can delete templates.');
+      return;
+    }
     if (!selectedTemplate) return;
     if (!activeDatabaseId) {
       openCreateModal();
@@ -372,9 +376,11 @@ export default function AssetTemplatesScreen() {
             </View>
 
             <View style={styles.modalFooter}>
-              <Pressable style={styles.dangerButton} onPress={deleteTemplate}>
-                <Text style={styles.dangerButtonText}>Delete</Text>
-              </Pressable>
+              {canDelete ? (
+                <Pressable style={styles.dangerButton} onPress={deleteTemplate}>
+                  <Text style={styles.dangerButtonText}>Delete</Text>
+                </Pressable>
+              ) : null}
               <Pressable style={styles.primaryButton} onPress={saveTemplateEdits}>
                 <Text style={styles.primaryButtonText}>Save</Text>
               </Pressable>

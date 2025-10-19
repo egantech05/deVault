@@ -52,7 +52,7 @@ function parseStoragePath(storage_path = "") {
 export default function LinkedDocumentsScreen() {
     const [modalVisible, setModalVisible] = useState(false);
     const { search, setSearch, rows, loading, reload } = useLinkedDocsList();
-    const { activeDatabaseId, openCreateModal } = useDatabase();
+    const { activeDatabaseId, openCreateModal, canDelete } = useDatabase();
 
     const openCreateModalIfNeeded = () => {
         if (!activeDatabaseId) {
@@ -165,17 +165,21 @@ export default function LinkedDocumentsScreen() {
                                 </View>
 
                                 {/* Delete icon (floats right center) */}
-                                <Pressable
-                                    onPress={() => deleteDocumentAndRules(doc)}
-                                    style={{
-                                        padding: 8,
-                                        borderRadius: 8,
-                                        justifyContent: "center",
-                                        alignItems: "center",
-                                    }}
-                                >
-                                    <Ionicons name="trash-outline" size={20} color="#ff5555" />
-                                </Pressable>
+                                {canDelete ? (
+                                    <Pressable
+                                        onPress={() => deleteDocumentAndRules(doc)}
+                                        style={{
+                                            padding: 8,
+                                            borderRadius: 8,
+                                            justifyContent: "center",
+                                            alignItems: "center",
+                                        }}
+                                    >
+                                        <Ionicons name="trash-outline" size={20} color="#ff5555" />
+                                    </Pressable>
+                                ) : (
+                                    <View style={{ width: 36 }} />
+                                )}
                             </View>
                         );
                     })}

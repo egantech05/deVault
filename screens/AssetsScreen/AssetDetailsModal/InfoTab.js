@@ -14,7 +14,7 @@ import React, {
     { asset, styles, colors, onSaved, onDeleted, onEditingChange, onSavingChange },
     ref
   ) {
-    const { activeDatabaseId, openCreateModal } = useDatabase();
+    const { activeDatabaseId, openCreateModal, canDelete } = useDatabase();
     const [fields, setFields] = useState([]);
     const [saving, setSaving] = useState(false);
     const [editing, setEditing] = useState(false);
@@ -139,6 +139,10 @@ import React, {
     };
   
     const remove = async () => {
+      if (!canDelete) {
+        Alert.alert("Permission", "Only admins can delete assets.");
+        return;
+      }
       const runDelete = async () => {
         if (!ensureDatabaseSelected()) return;
         try {

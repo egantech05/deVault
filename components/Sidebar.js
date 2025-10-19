@@ -87,9 +87,9 @@ export default function Sidebar({ isLarge, onClose }) {
     { label: "Assets", icon: "albums-outline", route: "Assets" },
     { label: "Asset Templates", icon: "document-outline", route: "AssetTemplates" },
     { label: "Log Templates", icon: "document-text-outline", route: "LogTemplates" },
-    { label: "Warehouse", icon: "settings-outline", route: "Warehouse" },
+    { label: "Warehouse", icon: "archive-outline", route: "Warehouse" },
     { label: "Linked Documents", icon: "link-outline", route: "LinkedDocs" },
-    { label: "Schedule", icon: "notifications-outline", route: "AssetTemplates" },
+    { label: "Team", icon: "people-outline", route: "Team" },
   ];
 
   const renderNavButtons = () =>
