@@ -5,10 +5,12 @@ import { Ionicons } from "@expo/vector-icons";
 import styles from "./styles";
 import { colors } from "../../components/Styles";
 import { supabase } from "../../lib/supabase";
+import { useDatabase } from "../../contexts/DatabaseContext";
 
 const TABLE_COMPONENTS = "components_catalog";
 
 export default function AddComponentModal({ visible, onClose, onCreated }) {
+    const { activeDatabaseId, openCreateModal } = useDatabase();
     const [model, setModel] = useState("");
     const [manufacturer, setManufacturer] = useState("");
     const [description, setDescription] = useState("");
@@ -50,6 +52,11 @@ export default function AddComponentModal({ visible, onClose, onCreated }) {
     // Debounced check: does a component with this model already exist?
     useEffect(() => {
         if (!visible) return;
+        if (!activeDatabaseId) {
+            setModelError(null);
+            setCheckingModel(false);
+            return;
+        }
 
         // clear previous debounce
         if (debounceTimer.current) clearTimeout(debounceTimer.current);
@@ -70,6 +77,7 @@ export default function AddComponentModal({ visible, onClose, onCreated }) {
                 const { count, error } = await supabase
                     .from(TABLE_COMPONENTS)
                     .select("id", { count: "exact", head: true })
+                    .eq("database_id", activeDatabaseId)
                     .eq("model", trimmedModel);
 
                 // Ignore outdated checks
@@ -95,7 +103,7 @@ export default function AddComponentModal({ visible, onClose, onCreated }) {
         return () => {
             if (debounceTimer.current) clearTimeout(debounceTimer.current);
         };
-    }, [trimmedModel, visible]);
+    }, [trimmedModel, visible, activeDatabaseId]);
 
     async function handleSave() {
         if (!canSave || saving) return;
@@ -110,11 +118,16 @@ export default function AddComponentModal({ visible, onClose, onCreated }) {
 
         setSaving(true);
         try {
+            if (!activeDatabaseId) {
+                openCreateModal();
+                throw new Error("Select a database before adding components.");
+            }
             // Final guard: re-check uniqueness by model
             {
                 const { count, error } = await supabase
                     .from(TABLE_COMPONENTS)
                     .select("id", { count: "exact", head: true })
+                    .eq("database_id", activeDatabaseId)
                     .eq("model", modelKey);
 
                 if (error) {
@@ -130,7 +143,7 @@ export default function AddComponentModal({ visible, onClose, onCreated }) {
             // Insert brand new component (no auto-update of existing)
             const { data: comp, error: insErr } = await supabase
                 .from(TABLE_COMPONENTS)
-                .insert([{ model: modelKey, manufacturer: mfgKey, description: descVal, location: locationVal, min_stock }])
+                .insert([{ database_id: activeDatabaseId, model: modelKey, manufacturer: mfgKey, description: descVal, location: locationVal, min_stock }])
                 .select("id")
                 .single();
             if (insErr) throw insErr;
@@ -141,7 +154,7 @@ export default function AddComponentModal({ visible, onClose, onCreated }) {
             if (init_qty !== 0) {
                 const { error: mvErr } = await supabase
                     .from("inventory_movements")
-                    .insert([{ component_id: compId, qty_delta: init_qty, notes: "Initial stock" }]);
+                    .insert([{ database_id: activeDatabaseId, component_id: compId, qty_delta: init_qty, notes: "Initial stock" }]);
                 if (mvErr) throw mvErr;
             }
 

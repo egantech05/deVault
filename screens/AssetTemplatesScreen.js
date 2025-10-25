@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   View, Text, StyleSheet, FlatList, useWindowDimensions,
-  TextInput, Pressable, Modal, Alert
+  TextInput, Pressable, Modal, Alert, ScrollView
 } from "react-native";
 import { colors, commonStyles } from "../components/Styles";
 import { Ionicons } from '@expo/vector-icons';
@@ -287,7 +287,12 @@ export default function AssetTemplatesScreen() {
               </Pressable>
             </View>
 
-            <View style={styles.modalContent}>
+            <ScrollView
+              style={styles.modalScrollView}
+              contentContainerStyle={styles.modalContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
               <Text style={styles.label}>Template Name</Text>
               <TextInput
                 style={styles.input}
@@ -296,6 +301,7 @@ export default function AssetTemplatesScreen() {
                 onChangeText={setTemplateName}
                 placeholder="Template name"
                 autoCapitalize="words"
+                placeholderTextColor={'#999'}
               />
               {nameTouched && !templateName.trim() && (
                 <Text style={styles.errorText}>Template name is required.</Text>
@@ -320,7 +326,7 @@ export default function AssetTemplatesScreen() {
                 <Ionicons name="add-circle-outline" size={18} color={colors.brand} />
                 <Text style={styles.addRowText}>Add property</Text>
               </Pressable>
-            </View>
+            </ScrollView>
 
             <View style={styles.modalFooter}>
               <Pressable style={styles.cancelButton} onPress={() => setIsModalVisible(false)}>
@@ -348,7 +354,12 @@ export default function AssetTemplatesScreen() {
               </Pressable>
             </View>
 
-            <View style={styles.modalContent}>
+            <ScrollView
+              style={styles.modalScrollView}
+              contentContainerStyle={styles.modalContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
               <Text style={styles.label}>Template Name</Text>
               <TextInput
                 style={styles.input}
@@ -373,7 +384,7 @@ export default function AssetTemplatesScreen() {
                 <Ionicons name="add-circle-outline" size={18} color={colors.brand} />
                 <Text style={styles.addRowText}>Add property</Text>
               </Pressable>
-            </View>
+            </ScrollView>
 
             <View style={styles.modalFooter}>
               {canDelete ? (
@@ -543,7 +554,7 @@ const styles = StyleSheet.create({
     maxWidth: 520,
     backgroundColor: "white",
     borderRadius: 16,
-    maxHeight: "80%",
+    height: "80%",
     flexDirection: "column",
     overflow: "hidden",
   },
@@ -564,6 +575,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "white",
   },
+  modalScrollView: { flex: 1 },
   modalContent: {
     padding: 20,
     flexGrow: 1,

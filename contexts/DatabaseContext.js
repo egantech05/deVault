@@ -6,6 +6,7 @@ import React, {
     useMemo,
     useState,
   } from 'react';
+import { AppState, Platform } from 'react-native';
   import { supabase } from '../lib/supabase';
   import { useAuth } from './AuthContext';
   
@@ -22,6 +23,7 @@ import React, {
     const [databases, setDatabases] = useState([]);
     const [activeDatabaseId, setActiveDatabaseId] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [initialized, setInitialized] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState(null);
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -32,6 +34,14 @@ import React, {
       () => databases.find((db) => db.id === activeDatabaseId) ?? null,
       [databases, activeDatabaseId]
     );
+
+    // Guard long-hanging network requests to avoid stuck spinners after idle
+    const withTimeout = useCallback((promise, ms = 15000) => {
+      return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+      ]);
+    }, []);
   
     const persistActiveDatabase = useCallback(
       async (databaseId) => {
@@ -55,7 +65,7 @@ import React, {
       [user, fetchUserProfile]
     );
   
-    const loadDatabases = useCallback(async () => {
+    const loadDatabases = useCallback(async ({ background = false } = {}) => {
       if (!user) {
         setDatabases([]);
         setActiveDatabaseId(null);
@@ -63,35 +73,43 @@ import React, {
         setError(null);
         setMembership(null);
         setMembershipLoading(false);
+        setInitialized(true);
         return;
       }
 
-      setLoading(true);
+      // Only show blocking loading if no active DB yet and not a background refresh
+      if (!background && !activeDatabaseId) setLoading(true);
       setError(null);
 
       try {
               // Owned databases
-              const { data: owned, error: fetchError } = await supabase
+              const { data: owned, error: fetchError } = await withTimeout(
+                supabase
                 .from('databases')
                 .select('id, name, created_at, owner_id')
                 .eq('owner_id', user.id)
-                .order('created_at', { ascending: true });
+                .order('created_at', { ascending: true })
+              );
               if (fetchError) throw fetchError;
 
               // Databases where user is a member (not owner)
-              const { data: memberRows, error: memberErr } = await supabase
+              const { data: memberRows, error: memberErr } = await withTimeout(
+                supabase
                 .from('database_members')
                 .select('database_id')
-                .eq('user_id', user.id);
+                .eq('user_id', user.id)
+              );
               if (memberErr) throw memberErr;
 
               let memberDbs = [];
               if (memberRows && memberRows.length) {
                 const ids = [...new Set(memberRows.map(r => r.database_id))];
-                const { data: dbsByMembership, error: dbsErr } = await supabase
+                const { data: dbsByMembership, error: dbsErr } = await withTimeout(
+                  supabase
                   .from('databases')
                   .select('id, name, created_at, owner_id')
-                  .in('id', ids);
+                  .in('id', ids)
+                );
                 if (dbsErr) throw dbsErr;
                 memberDbs = dbsByMembership || [];
               }
@@ -109,31 +127,42 @@ import React, {
               setDatabases(list);
 
               let nextActiveId = null;
-              if (profile?.last_active_database_id) {
+
+              // Keep current active if it still exists
+              if (activeDatabaseId && list.some((db) => db.id === activeDatabaseId)) {
+                nextActiveId = activeDatabaseId;
+              } else if (profile?.last_active_database_id) {
                 const match = list.find((db) => db.id === profile.last_active_database_id);
                 if (match) {
                   nextActiveId = match.id;
                 }
               }
         
+              // Prefer last active from profile; otherwise default to first
               if (!nextActiveId && list.length) {
                 nextActiveId = list[0].id;
-                await persistActiveDatabase(nextActiveId);
+                // Set immediately to unblock UI; persist in background
+                setActiveDatabaseId(nextActiveId);
+                persistActiveDatabase(nextActiveId).catch((e) =>
+                  console.warn('Persist default active DB failed:', e?.message || e)
+                );
+              } else {
+                // Only update if changed
+                if (nextActiveId !== activeDatabaseId) setActiveDatabaseId(nextActiveId);
               }
-        
-              setActiveDatabaseId(nextActiveId);
             } catch (err) {
               console.error('Unexpected error loading databases', err);
-              setDatabases([]);
-              setActiveDatabaseId(null);
+              // On transient failure, keep previous state; just surface error
+              if (!activeDatabaseId) setDatabases([]);
               setError(err);
             } finally {
               setLoading(false);
+              setInitialized(true);
             }
 
 
 
-    }, [user, profile?.last_active_database_id, persistActiveDatabase]);
+    }, [user, profile?.last_active_database_id, persistActiveDatabase, activeDatabaseId]);
   
     const loadMembership = useCallback(
       async (databaseId, ownerId) => {
@@ -145,12 +174,14 @@ import React, {
 
         setMembershipLoading(true);
         try {
-          const { data, error } = await supabase
+          const { data, error } = await withTimeout(
+            supabase
             .from('database_members')
             .select('id, role')
             .eq('database_id', databaseId)
             .eq('user_id', user.id)
-            .maybeSingle();
+            .maybeSingle()
+          );
 
           if (error) {
             throw error;
@@ -178,7 +209,7 @@ import React, {
     );
 
     useEffect(() => {
-      loadDatabases();
+      loadDatabases({ background: false });
     }, [loadDatabases]);
 
     useEffect(() => {
@@ -190,12 +221,74 @@ import React, {
       loadMembership(activeDatabaseId, activeDatabase?.owner_id ?? null);
     }, [activeDatabaseId, activeDatabase?.owner_id, loadMembership]);
 
+    // Realtime: refresh list only when there are changes relevant to the user
+    useEffect(() => {
+      if (!user?.id) return;
+      const ch = supabase
+        .channel(`dblist:${user.id}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'databases', filter: `owner_id=eq.${user.id}` },
+          () => loadDatabases({ background: true })
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'database_members', filter: `user_id=eq.${user.id}` },
+          () => loadDatabases({ background: true })
+        )
+        .subscribe();
+
+      return () => {
+        try { supabase.removeChannel(ch); } catch {}
+      };
+    }, [user?.id, loadDatabases]);
+
     const refresh = useCallback(() => {
-      loadDatabases();
+      loadDatabases({ background: true });
       if (activeDatabaseId) {
         loadMembership(activeDatabaseId, activeDatabase?.owner_id ?? null);
       }
     }, [loadDatabases, activeDatabaseId, activeDatabase?.owner_id, loadMembership]);
+    
+    // Refresh on app resume and when network/visibility changes to recover from idle
+    useEffect(() => {
+      const onlineHandler = () => {
+        try { refresh(); } catch {}
+      };
+      const visHandler = () => {
+        try { if (typeof document !== 'undefined' && document.visibilityState === 'visible') refresh(); } catch {}
+      };
+
+      if (typeof window !== 'undefined') {
+        window.addEventListener('online', onlineHandler);
+      }
+      if (typeof document !== 'undefined') {
+        document.addEventListener('visibilitychange', visHandler);
+      }
+
+      let appStateSub;
+      try {
+        if (Platform && Platform.OS !== 'web' && AppState?.addEventListener) {
+          appStateSub = AppState.addEventListener('change', (state) => {
+            if (state === 'active') {
+              refresh();
+            }
+          });
+        }
+      } catch {}
+
+      return () => {
+        if (typeof window !== 'undefined') {
+          window.removeEventListener('online', onlineHandler);
+        }
+        if (typeof document !== 'undefined') {
+          document.removeEventListener('visibilitychange', visHandler);
+        }
+        if (appStateSub && typeof appStateSub.remove === 'function') {
+          appStateSub.remove();
+        }
+      };
+    }, [refresh]);
   
     const selectDatabase = useCallback(
       async (databaseId) => {
@@ -204,7 +297,10 @@ import React, {
           return;
         }
         setActiveDatabaseId(databaseId);
-        await persistActiveDatabase(databaseId);
+        // Persist in background; don't block UI
+        persistActiveDatabase(databaseId).catch((e) =>
+          console.warn('Persist active DB failed:', e?.message || e)
+        );
         const target = databases.find((db) => db.id === databaseId);
         await loadMembership(databaseId, target?.owner_id ?? null);
         setIsCreateModalOpen(false);
@@ -224,11 +320,13 @@ import React, {
         if (!trimmed) throw new Error('Database name is required.');
   
         setSaving(true);
-        const { data, error: insertError } = await supabase
+        const { data, error: insertError } = await withTimeout(
+          supabase
           .from('databases')
           .insert([{ owner_id: user.id, name: trimmed }])
           .select('id, name, created_at, owner_id')
-          .single();
+          .single()
+        );
         setSaving(false);
   
         if (insertError) {
@@ -242,13 +340,15 @@ import React, {
           )
         );
         try {
-          const { data: creatorMembership, error: memberError } = await supabase
+          const { data: creatorMembership, error: memberError } = await withTimeout(
+            supabase
             .from('database_members')
             .upsert([
               { database_id: data.id, user_id: user.id, role: 'admin' },
             ], { onConflict: 'database_id,user_id' })
             .select('id, role')
-            .single();
+            .single()
+          );
 
           if (memberError) {
             console.error('Failed to ensure creator membership', memberError);
@@ -259,7 +359,10 @@ import React, {
           console.error('Unexpected error creating membership', memberErr);
         }
         setActiveDatabaseId(data.id);
-        await persistActiveDatabase(data.id);
+        // Persist in background to avoid blocking UI
+        persistActiveDatabase(data.id).catch((e) =>
+          console.warn('Persist new active DB failed:', e?.message || e)
+        );
         setIsCreateModalOpen(false);
         return data;
       },
@@ -279,6 +382,75 @@ import React, {
     const isAdmin = derivedRole === 'admin';
     const canDelete = isAdmin;
     const canManageTeam = isAdmin;
+
+    const deleteDatabase = useCallback(
+      async (databaseId) => {
+        if (!user) throw new Error('You must be signed in.');
+        if (!databaseId) throw new Error('No database specified.');
+
+        // Fetch database owner
+        const { data: db, error: dbErr } = await withTimeout(
+          supabase
+            .from('databases')
+            .select('id, owner_id, name')
+            .eq('id', databaseId)
+            .single()
+        );
+        if (dbErr) throw dbErr;
+        if (!db) throw new Error('Database not found.');
+
+        // Collect admin users for this database (membership admins + owner)
+        const { data: adminRows, error: adminErr } = await withTimeout(
+          supabase
+            .from('database_members')
+            .select('user_id, role')
+            .eq('database_id', databaseId)
+            .eq('role', 'admin')
+        );
+        if (adminErr) throw adminErr;
+
+        const adminSet = new Set();
+        if (db.owner_id) adminSet.add(db.owner_id);
+        (adminRows || []).forEach((r) => {
+          if (r?.user_id) adminSet.add(r.user_id);
+        });
+
+        const isAdminUser = adminSet.has(user.id);
+        if (!isAdminUser) {
+          throw new Error('Only admins can delete this database.');
+        }
+
+        // If any other admin exists (besides current user), block deletion
+        adminSet.delete(user.id);
+        if (adminSet.size > 0) {
+          throw new Error('Cannot delete: other admins exist for this database.');
+        }
+
+        setSaving(true);
+        try {
+          const { error: delErr } = await withTimeout(
+            supabase
+              .from('databases')
+              .delete()
+              .eq('id', databaseId)
+          );
+          if (delErr) throw delErr;
+
+          // Refresh local state
+          await loadDatabases({ background: true });
+          if (activeDatabaseId === databaseId) {
+            // Clear active selection if it was deleted
+            try { await persistActiveDatabase(null); } catch {}
+            setActiveDatabaseId(null);
+            setMembership(null);
+          }
+          return true;
+        } finally {
+          setSaving(false);
+        }
+      },
+      [user, activeDatabaseId, withTimeout, loadDatabases, persistActiveDatabase]
+    );
 
     const value = useMemo(
       () => ({
@@ -301,6 +473,7 @@ import React, {
         isAdmin,
         canDelete,
         canManageTeam,
+        deleteDatabase,
       }),
       [
         databases,
@@ -322,9 +495,11 @@ import React, {
         isAdmin,
         canDelete,
         canManageTeam,
+        deleteDatabase,
       ]
     );
-  
+
     return <DatabaseContext.Provider value={value}>{children}</DatabaseContext.Provider>;
   };
+  
   

@@ -3,9 +3,15 @@ import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { commonStyles, colors } from "./Styles";
 import UserProfileDropdown from "./UserProfileDropdown";
+import { useAuth } from "../contexts/AuthContext";
 
-export const Header = ({ showMenuBtn, onMenuPress, title = "deVault" }) => {
+export const Header = ({ showMenuBtn, onMenuPress, title = "Ssetra" }) => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const { user, profile } = useAuth();
+
+  const displayName = (profile?.first_name || profile?.last_name)
+    ? [profile?.first_name, profile?.last_name].filter(Boolean).join(" ")
+    : user?.email;
 
   return (
     <View style={styles.header}>
@@ -21,12 +27,24 @@ export const Header = ({ showMenuBtn, onMenuPress, title = "deVault" }) => {
         <Text style={commonStyles.textTitle}>{title}</Text>
       </View>
 
-      <Pressable 
-        hitSlop={12} 
-        style={{ paddingHorizontal: 16 }} 
+      <Pressable
+        hitSlop={12}
+        style={{ paddingHorizontal: 16 }}
         onPress={() => setShowUserDropdown(true)}
       >
-        <Ionicons name="person-circle-outline" size={32} color="white" />
+        <View style={styles.userArea}>
+        {displayName ? (
+            <Text
+              style={styles.userName}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {displayName}
+            </Text>
+          ) : null}
+          <Ionicons name="person-circle-outline" size={32} color="white" />
+
+        </View>
       </Pressable>
 
       {/* User Profile Dropdown */}
@@ -45,5 +63,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+  },
+  userArea: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  userName: {
+    color: "white",
+    marginRight: 8,
+    fontWeight: "600",
+    maxWidth: 140,
   },
 });

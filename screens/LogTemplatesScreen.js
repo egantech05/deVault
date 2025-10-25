@@ -384,8 +384,8 @@ export default function LogTemplatesScreen() {
                 />
               )}
               ListHeaderComponent={
-                <View style={styles.modalContent}>
-                  <View style={styles.inputGroup}>
+                <View style={[styles.modalContent, { paddingBottom: 8 }]}>
+                  <View style={[styles.inputGroup, { marginBottom: 8 }]}>
                     <Text style={styles.label}>Template Name</Text>
                     <TextInput
                       style={styles.input}
@@ -405,13 +405,13 @@ export default function LogTemplatesScreen() {
                     )}
                   </View>
 
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Properties</Text>
+                  <View style={[styles.inputGroup, { marginBottom: 0 }]}>
+                    <Text style={[styles.label, { marginTop: 12, marginBottom: 4 }]}>Properties</Text>
                   </View>
                 </View>
               }
               ListFooterComponent={
-                <View style={[styles.modalContent, { paddingTop: 0 }]}>
+                <View style={[styles.modalContent, { paddingTop: 10 }]}>
                   <Pressable style={styles.addPropertyButton} onPress={addProperty}>
                     <Ionicons name="add" size={20} color={colors.brand} />
                     <Text style={styles.addPropertyText}>Add Property</Text>
@@ -483,8 +483,8 @@ export default function LogTemplatesScreen() {
                 />
               )}
               ListHeaderComponent={
-                <View style={styles.modalContent}>
-                  <View style={styles.inputGroup}>
+                <View style={[styles.modalContent, { paddingBottom: 8 }]}>
+                  <View style={[styles.inputGroup, { marginBottom: 8 }]}>
                     <Text style={styles.label}>Template Name</Text>
                     <TextInput
                       style={styles.input}
@@ -495,8 +495,8 @@ export default function LogTemplatesScreen() {
                     />
                   </View>
 
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Properties</Text>
+                  <View style={[styles.inputGroup, { marginBottom: 0 }]}>
+                    <Text style={[styles.label, { marginTop: 12, marginBottom: 4 }]}>Properties</Text>
                   </View>
                 </View>
               }

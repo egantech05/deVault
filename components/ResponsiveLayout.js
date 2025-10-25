@@ -18,7 +18,7 @@ import { useDatabase } from '../contexts/DatabaseContext';
 const BREAKPOINT = 900;
 const SIDEBAR_WIDTH = 233;
 
-export default function ResponsiveLayout({ children, title = "deVault" }) {
+export default function ResponsiveLayout({ children, title = "sSETRA" }) {
   const { width } = useWindowDimensions();
   const isLarge = width >= BREAKPOINT;
   const { activeDatabaseId, loading: dbLoading, openCreateModal } = useDatabase();

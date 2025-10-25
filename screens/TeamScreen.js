@@ -388,6 +388,7 @@ export default function TeamScreen() {
                 if (addError) setAddError("");
               }}
               placeholder="user@example.com"
+              placeholderTextColor={"#999"}
               autoCapitalize="none"
               keyboardType="email-address"
               style={[styles.input, styles.inlineInput]}

@@ -69,12 +69,18 @@ export default function LinkedDocumentsScreen() {
         if (!openCreateModalIfNeeded()) return;
         const go = async () => {
             try {
-                // 1️⃣ Delete from storage
+                    // 1️⃣ Delete from storage (fail closed except when already missing)
                 if (doc?.storage_path) {
                     const { bucket, path } = parseStoragePath(doc.storage_path);
                     if (bucket && path) {
                         const { error: sErr } = await supabase.storage.from(bucket).remove([path]);
-                        if (sErr) console.warn("Storage remove warning:", sErr.message);
+                        if (sErr) {
+                            const msg = sErr.message || "Storage delete failed";
+                            const isNotFound = /not\s*found|No such file/i.test(msg);
+                            if (!isNotFound) {
+                                throw new Error(`Could not delete file from storage: ${msg}`);
+                            }
+                        }
                     }
                 }
 
@@ -85,7 +91,7 @@ export default function LinkedDocumentsScreen() {
                 await reload();
             } catch (e) {
                 console.error("deleteDocumentAndRules error:", e);
-                Alert.alert("Error", e.message || "Failed to delete document.");
+                Alert.alert("Delete Failed", e.message || "Failed to delete document.");
             }
         };
 

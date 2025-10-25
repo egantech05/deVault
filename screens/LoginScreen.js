@@ -127,7 +127,7 @@ return (
       <View style={styles.content}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>deVault</Text>
+          <Text style={styles.title}>Ssetra</Text>
           <Text style={styles.subtitle}>Asset Management System</Text>
         </View>
 

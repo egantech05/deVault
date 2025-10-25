@@ -1,6 +1,6 @@
 // components/Sidebar.js
 import React, { useState } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet, Alert, Platform } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { colors } from "./Styles";
 import { Ionicons } from '@expo/vector-icons';
@@ -15,6 +15,8 @@ export default function Sidebar({ isLarge, onClose }) {
     activeDatabase,
     selectDatabase,
     openCreateModal,
+    refresh,
+    deleteDatabase,
   } = useDatabase();
 
   const [expanded, setExpanded] = useState(false);
@@ -25,6 +27,37 @@ export default function Sidebar({ isLarge, onClose }) {
     await selectDatabase(id);
     setExpanded(false);
     onClose?.();
+  };
+
+  const confirmDeleteDatabase = (db) => {
+    const go = async () => {
+      try {
+        await deleteDatabase(db.id);
+        setExpanded(false);
+        try { refresh(); } catch {}
+      } catch (e) {
+        const msg = e?.message || "Failed to delete database.";
+        if (Platform.OS === "web") {
+          alert(msg);
+        } else {
+          Alert.alert("Delete Database", msg);
+        }
+      }
+    };
+
+    const prompt = `Delete database "${db?.name || ""}"?\nThis action cannot be undone.`;
+    if (Platform.OS === "web") {
+      if (window.confirm(prompt)) go();
+    } else {
+      Alert.alert(
+        "Delete Database",
+        prompt,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Delete", style: "destructive", onPress: go },
+        ]
+      );
+    }
   };
 
   const renderDatabaseSelector = () => (
@@ -49,23 +82,33 @@ export default function Sidebar({ isLarge, onClose }) {
           {expanded && (
             <View style={styles.dbList}>
               {databases.map((db) => (
-                <Pressable
+                <View
                   key={db.id}
                   style={[
                     styles.dbOption,
+                    styles.dbOptionRow,
                     db.id === activeDatabase?.id && styles.dbOptionActive,
                   ]}
-                  onPress={() => pickDatabase(db.id)}
                 >
-                  <Text
-                    style={[
-                      styles.dbOptionText,
-                      db.id === activeDatabase?.id && styles.dbOptionTextActive,
-                    ]}
+                  <Pressable style={styles.dbOptionName} onPress={() => pickDatabase(db.id)}>
+                    <Text
+                      style={[
+                        styles.dbOptionText,
+                        db.id === activeDatabase?.id && styles.dbOptionTextActive,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {db.name}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.dbDeleteBtn}
+                    onPress={() => confirmDeleteDatabase(db)}
+                    accessibilityLabel={`Delete database ${db?.name || ""}`}
                   >
-                    {db.name}
-                  </Text>
-                </Pressable>
+                    <Ionicons name="trash-outline" size={18} color="#ff5555" />
+                  </Pressable>
+                </View>
               ))}
               <Pressable style={styles.dbAddRow} onPress={openCreateModal}>
                 <Ionicons name="add-circle-outline" size={18} color="#d1d5db" />
@@ -177,6 +220,14 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 20,
   },
+  dbOptionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  dbOptionName: {
+    flex: 1,
+  },
   dbOptionActive: {
     backgroundColor: "rgba(255,255,255,0.08)",
   },
@@ -187,6 +238,11 @@ const styles = StyleSheet.create({
   dbOptionTextActive: {
     color: "white",
     fontWeight: "600",
+  },
+  dbDeleteBtn: {
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+    borderRadius: 6,
   },
   dbAddRow: {
     flexDirection: "row",

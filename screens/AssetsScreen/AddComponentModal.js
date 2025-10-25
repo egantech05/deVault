@@ -211,7 +211,7 @@ export default function AddComponentModal({ visible, onClose, onCreate, searchCa
                                 disabled={!canSave}
                             >
                                 <Text style={styles.saveButtonText}>
-                                    {picked?.id ? "Add existing" : "Save"}
+                                    {picked?.id ? "Add" : "Save"}
                                 </Text>
                             </Pressable>
                         </View>

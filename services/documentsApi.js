@@ -19,7 +19,11 @@ export const deleteDoc = async (databaseId, doc) => {
   const { error: delObjErr } = await supabase.storage
     .from("asset-docs")
     .remove([doc.path]);
-  if (delObjErr) throw delObjErr;
+  if (delObjErr) {
+    const msg = delObjErr.message || "Storage delete failed";
+    const isNotFound = /not\s*found|No such file/i.test(msg);
+    if (!isNotFound) throw delObjErr;
+  }
 
   return supabase
     .from("asset_documents")
