@@ -35,14 +35,6 @@ import { AppState, Platform } from 'react-native';
       [databases, activeDatabaseId]
     );
 
-    // Guard long-hanging network requests to avoid stuck spinners after idle
-    const withTimeout = useCallback((promise, ms = 60000) => {
-      return Promise.race([
-        promise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
-      ]);
-    }, []);
-  
     const persistActiveDatabase = useCallback(
       async (databaseId) => {
         if (!user) return;
@@ -82,37 +74,31 @@ import { AppState, Platform } from 'react-native';
       setError(null);
 
       try {
-              // Owned databases
-              const { data: owned, error: fetchError } = await withTimeout(
-                supabase
+            // Owned databases
+            const { data: owned, error: fetchError } = await supabase
+              .from('databases')
+              .select('id, name, created_at, owner_id')
+              .eq('owner_id', user.id)
+              .order('created_at', { ascending: true });
+            if (fetchError) throw fetchError;
+
+            // Databases where user is a member (not owner)
+            const { data: memberRows, error: memberErr } = await supabase
+              .from('database_members')
+              .select('database_id')
+              .eq('user_id', user.id);
+            if (memberErr) throw memberErr;
+
+            let memberDbs = [];
+            if (memberRows && memberRows.length) {
+              const ids = [...new Set(memberRows.map(r => r.database_id))];
+              const { data: dbsByMembership, error: dbsErr } = await supabase
                 .from('databases')
                 .select('id, name, created_at, owner_id')
-                .eq('owner_id', user.id)
-                .order('created_at', { ascending: true })
-              );
-              if (fetchError) throw fetchError;
-
-              // Databases where user is a member (not owner)
-              const { data: memberRows, error: memberErr } = await withTimeout(
-                supabase
-                .from('database_members')
-                .select('database_id')
-                .eq('user_id', user.id)
-              );
-              if (memberErr) throw memberErr;
-
-              let memberDbs = [];
-              if (memberRows && memberRows.length) {
-                const ids = [...new Set(memberRows.map(r => r.database_id))];
-                const { data: dbsByMembership, error: dbsErr } = await withTimeout(
-                  supabase
-                  .from('databases')
-                  .select('id, name, created_at, owner_id')
-                  .in('id', ids)
-                );
-                if (dbsErr) throw dbsErr;
-                memberDbs = dbsByMembership || [];
-              }
+                .in('id', ids);
+              if (dbsErr) throw dbsErr;
+              memberDbs = dbsByMembership || [];
+            }
 
               // Merge owned + member and de-duplicate by id
               const seen = new Set();
@@ -151,15 +137,10 @@ import { AppState, Platform } from 'react-native';
                 if (nextActiveId !== activeDatabaseId) setActiveDatabaseId(nextActiveId);
               }
             } catch (err) {
-              if (err && err.message === 'timeout') {
-                console.warn('loadDatabases timed out; will retry on resume/network');
-                // Do not set error state for transient timeouts
-              } else {
-                console.error('Unexpected error loading databases', err);
-                // On non-timeout failure, keep previous state; surface error
-                if (!activeDatabaseId) setDatabases([]);
-                setError(err);
-              }
+              console.error('Unexpected error loading databases', err);
+              // On failure, keep previous state; surface error
+              if (!activeDatabaseId) setDatabases([]);
+              setError(err);
             } finally {
               setLoading(false);
               setInitialized(true);
@@ -179,14 +160,12 @@ import { AppState, Platform } from 'react-native';
 
         setMembershipLoading(true);
         try {
-          const { data, error } = await withTimeout(
-            supabase
+          const { data, error } = await supabase
             .from('database_members')
             .select('id, role')
             .eq('database_id', databaseId)
             .eq('user_id', user.id)
-            .maybeSingle()
-          );
+            .maybeSingle();
 
           if (error) {
             throw error;
@@ -200,16 +179,11 @@ import { AppState, Platform } from 'react-native';
             setMembership(null);
           }
         } catch (err) {
-          if (err && err.message === 'timeout') {
-            console.warn('loadMembership timed out; keeping previous membership');
-            // Keep previous membership on timeout; avoid flipping state
+          console.error('Failed to load membership', err);
+          if (ownerId && ownerId === user?.id) {
+            setMembership({ id: null, role: 'admin', database_id: databaseId, isOwnerFallback: true });
           } else {
-            console.error('Failed to load membership', err);
-            if (ownerId && ownerId === user?.id) {
-              setMembership({ id: null, role: 'admin', database_id: databaseId, isOwnerFallback: true });
-            } else {
-              setMembership(null);
-            }
+            setMembership(null);
           }
         } finally {
           setMembershipLoading(false);
@@ -330,13 +304,11 @@ import { AppState, Platform } from 'react-native';
         if (!trimmed) throw new Error('Database name is required.');
   
         setSaving(true);
-        const { data, error: insertError } = await withTimeout(
-          supabase
+        const { data, error: insertError } = await supabase
           .from('databases')
           .insert([{ owner_id: user.id, name: trimmed }])
           .select('id, name, created_at, owner_id')
-          .single()
-        );
+          .single();
         setSaving(false);
   
         if (insertError) {
@@ -350,15 +322,13 @@ import { AppState, Platform } from 'react-native';
           )
         );
         try {
-          const { data: creatorMembership, error: memberError } = await withTimeout(
-            supabase
+          const { data: creatorMembership, error: memberError } = await supabase
             .from('database_members')
             .upsert([
               { database_id: data.id, user_id: user.id, role: 'admin' },
             ], { onConflict: 'database_id,user_id' })
             .select('id, role')
-            .single()
-          );
+            .single();
 
           if (memberError) {
             console.error('Failed to ensure creator membership', memberError);
@@ -399,24 +369,20 @@ import { AppState, Platform } from 'react-native';
         if (!databaseId) throw new Error('No database specified.');
 
         // Fetch database owner
-        const { data: db, error: dbErr } = await withTimeout(
-          supabase
-            .from('databases')
-            .select('id, owner_id, name')
-            .eq('id', databaseId)
-            .single()
-        );
+        const { data: db, error: dbErr } = await supabase
+          .from('databases')
+          .select('id, owner_id, name')
+          .eq('id', databaseId)
+          .single();
         if (dbErr) throw dbErr;
         if (!db) throw new Error('Database not found.');
 
         // Collect admin users for this database (membership admins + owner)
-        const { data: adminRows, error: adminErr } = await withTimeout(
-          supabase
-            .from('database_members')
-            .select('user_id, role')
-            .eq('database_id', databaseId)
-            .eq('role', 'admin')
-        );
+        const { data: adminRows, error: adminErr } = await supabase
+          .from('database_members')
+          .select('user_id, role')
+          .eq('database_id', databaseId)
+          .eq('role', 'admin');
         if (adminErr) throw adminErr;
 
         const adminSet = new Set();
@@ -438,12 +404,10 @@ import { AppState, Platform } from 'react-native';
 
         setSaving(true);
         try {
-          const { error: delErr } = await withTimeout(
-            supabase
-              .from('databases')
-              .delete()
-              .eq('id', databaseId)
-          );
+          const { error: delErr } = await supabase
+            .from('databases')
+            .delete()
+            .eq('id', databaseId);
           if (delErr) throw delErr;
 
           // Refresh local state
@@ -459,7 +423,7 @@ import { AppState, Platform } from 'react-native';
           setSaving(false);
         }
       },
-      [user, activeDatabaseId, withTimeout, loadDatabases, persistActiveDatabase]
+      [user, activeDatabaseId, loadDatabases, persistActiveDatabase]
     );
 
     const value = useMemo(

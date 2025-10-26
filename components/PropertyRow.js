@@ -3,7 +3,7 @@ import React from 'react';
 import { View, Text, TextInput, Platform, Pressable, StyleSheet } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../Styles'; // relative to /components/templates/
+import { colors } from './Styles'; 
 
 const PROPERTY_TYPES = [
     { value: 'text', label: 'Text' },

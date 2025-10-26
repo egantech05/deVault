@@ -14,7 +14,7 @@ import {
 import { colors, commonStyles } from "../components/Styles";
 import { Ionicons } from "@expo/vector-icons";
 import AutoShrinkText from "../components/AutoShrinkText";
-import PropertyRow from "../components/templates/PropertyRow";
+import PropertyRow from "../components/PropertyRow";
 import { getCardSize } from "../utils/cardLayout";
 import {
   listTemplates,
