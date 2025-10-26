@@ -36,7 +36,7 @@ import { AppState, Platform } from 'react-native';
     );
 
     // Guard long-hanging network requests to avoid stuck spinners after idle
-    const withTimeout = useCallback((promise, ms = 15000) => {
+    const withTimeout = useCallback((promise, ms = 60000) => {
       return Promise.race([
         promise,
         new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
@@ -151,10 +151,15 @@ import { AppState, Platform } from 'react-native';
                 if (nextActiveId !== activeDatabaseId) setActiveDatabaseId(nextActiveId);
               }
             } catch (err) {
-              console.error('Unexpected error loading databases', err);
-              // On transient failure, keep previous state; just surface error
-              if (!activeDatabaseId) setDatabases([]);
-              setError(err);
+              if (err && err.message === 'timeout') {
+                console.warn('loadDatabases timed out; will retry on resume/network');
+                // Do not set error state for transient timeouts
+              } else {
+                console.error('Unexpected error loading databases', err);
+                // On non-timeout failure, keep previous state; surface error
+                if (!activeDatabaseId) setDatabases([]);
+                setError(err);
+              }
             } finally {
               setLoading(false);
               setInitialized(true);
@@ -195,11 +200,16 @@ import { AppState, Platform } from 'react-native';
             setMembership(null);
           }
         } catch (err) {
-          console.error('Failed to load membership', err);
-          if (ownerId && ownerId === user?.id) {
-            setMembership({ id: null, role: 'admin', database_id: databaseId, isOwnerFallback: true });
+          if (err && err.message === 'timeout') {
+            console.warn('loadMembership timed out; keeping previous membership');
+            // Keep previous membership on timeout; avoid flipping state
           } else {
-            setMembership(null);
+            console.error('Failed to load membership', err);
+            if (ownerId && ownerId === user?.id) {
+              setMembership({ id: null, role: 'admin', database_id: databaseId, isOwnerFallback: true });
+            } else {
+              setMembership(null);
+            }
           }
         } finally {
           setMembershipLoading(false);
