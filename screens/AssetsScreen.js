@@ -4,7 +4,6 @@ import {
   Text,
   FlatList,
   useWindowDimensions,
-  TextInput,
   Pressable,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -15,6 +14,7 @@ import styles from "./AssetsScreen/styles";
 import { colors, commonStyles } from "../components/Styles";
 import AutoShrinkText from "../components/AutoShrinkText";
 import { getCardSize } from "../utils/cardLayout";
+import SearchBar from "../components/SearchBar";
 
 export default function AssetsScreen() {
   const { width } = useWindowDimensions();
@@ -110,16 +110,7 @@ export default function AssetsScreen() {
     <View style={commonStyles.contentContainer}>
       <Text style={commonStyles.textPrimary}>Assets</Text>
 
-      <View style={styles.searchBar}>
-        <Ionicons name="search" size={16} color={"white"} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search..."
-          placeholderTextColor={"white"}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-      </View>
+      <SearchBar value={searchQuery} onChangeText={setSearchQuery} />
 
       <FlatList
         key={listKey}

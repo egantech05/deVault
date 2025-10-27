@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AutoShrinkText from "../components/AutoShrinkText";
 import { getCardSize } from "../utils/cardLayout";
 import ModalSmall from "../components/ModalSmall";
+import SearchBar from "../components/SearchBar";
 import {
   listTemplates,
   createTemplate,
@@ -341,16 +342,13 @@ export default function LogTemplatesScreen() {
     <View style={commonStyles.contentContainer}>
       <Text style={commonStyles.textPrimary}>Log Templates</Text>
 
-      <View style={styles.searchBar}>
-        <Ionicons name="search" size={16} color="white" />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search..."
-          placeholderTextColor="white"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-      </View>
+      <SearchBar
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+        placeholder="Search..."
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
 
       <FlatList
         key={listKey}
@@ -458,15 +456,8 @@ export const styles = StyleSheet.create({
     flexWrap: "wrap",
     justifyContent: "center",
   },
-  searchBar: {
-    padding: 16,
-    borderColor: "white",
-    borderBottomWidth: 3,
-    height: 55,
-    flexDirection: "row",
-    marginBottom: 8,
-  },
-  searchInput: { color: "white", marginLeft: 16, flex: 1 },
+
+
   displayCard: {
     backgroundColor: "white",
     padding: 12,

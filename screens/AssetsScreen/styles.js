@@ -11,15 +11,6 @@ const styles = StyleSheet.create({
         flexWrap: "wrap",
         justifyContent: "center",
     },
-    searchBar: {
-        padding: 16,
-        borderColor: "white",
-        borderBottomWidth: 3,
-        height: 55,
-        flexDirection: "row",
-        marginBottom: 8,
-    },
-    searchInput: { color: "white", marginLeft: 16, flex: 1 },
     displayCard: { backgroundColor: "white", padding: 12, borderRadius: 13, margin: 8 },
     addCard: {
         backgroundColor: colors.secondary,

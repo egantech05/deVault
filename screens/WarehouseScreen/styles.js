@@ -11,16 +11,9 @@ const styles = StyleSheet.create({
         alignItems: "center",
         gap: 12,
         marginBottom: 8,
+
     },
-    searchBar: {
-        padding: 16,
-        borderColor: "white",
-        borderBottomWidth: 3,
-        height: 55,
-        flexDirection: "row",
-        flex: 1,
-    },
-    searchInput: { color: "white", marginLeft: 16, flex: 1 },
+
 
     histBtn: {
         height: 40,

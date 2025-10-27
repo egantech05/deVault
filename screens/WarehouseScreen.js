@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, commonStyles } from "../components/Styles";
+import SearchBar from "../components/SearchBar";
 import { getCardSize } from "../utils/cardLayout";
 import { supabase } from "../lib/supabase";
 import WarehouseModal from "./WarehouseScreen/WarehouseModal";
@@ -195,16 +196,14 @@ export default function WarehouseScreen() {
       <Text style={commonStyles.textPrimary}>Warehouse</Text>
 
       <View style={styles.searchRow}>
-        <View style={styles.searchBar}>
-          <Ionicons name="search" size={16} color="white" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Warehouse"
-            placeholderTextColor="white"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
+        <SearchBar
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder="Search..."
+          autoCapitalize="none"
+          autoCorrect={false}
+          style={{ flex: 1 }} 
+        />
         <Pressable
           onPress={() => {
             if (!ensureDatabaseSelected()) return;

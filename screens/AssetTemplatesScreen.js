@@ -5,7 +5,6 @@ import {
   StyleSheet,
   FlatList,
   useWindowDimensions,
-  TextInput,
   Pressable,
   Alert,
 } from "react-native";
@@ -15,6 +14,7 @@ import AutoShrinkText from "../components/AutoShrinkText";
 import NewTemplateModal from "./AssetTemplatesScreen/NewTemplateModal";
 import ViewTemplateModal from "./AssetTemplatesScreen/ViewTemplateModal";
 import ModalSmall from "../components/ModalSmall";
+import SearchBar from "../components/SearchBar";
 import { getCardSize } from '../utils/cardLayout';
 import {
   listTemplates, createTemplate, getTemplateFields, updateTemplateName,
@@ -255,16 +255,12 @@ export default function AssetTemplatesScreen() {
     <View style={commonStyles.contentContainer}>
       <Text style={commonStyles.textPrimary}>Asset Templates</Text>
 
-      <View style={styles.searchBar}>
-        <Ionicons name="search" size={16} color={"white"} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search..."
-          placeholderTextColor={"white"}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-      </View>
+      <SearchBar
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+        iconColor="white"
+        placeholder="Search..."
+      />
 
       <FlatList
         key={listKey}
@@ -373,16 +369,6 @@ export default function AssetTemplatesScreen() {
 }
 
 const styles = StyleSheet.create({
-  searchBar: {
-    padding: 16,
-    borderColor: "white",
-    borderBottomWidth: 3,
-    height: 55,
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  searchInput: { color: "white", marginLeft: 16, flex: 1 },
   rowWrap: {
     gap: 16,
     paddingVertical: 12,
