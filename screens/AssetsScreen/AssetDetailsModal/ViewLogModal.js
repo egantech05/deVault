@@ -1,6 +1,5 @@
 import React from "react";
 import { View, Text, Pressable } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import styles from "../styles";
 import { colors } from "../../../components/Styles";
 import PropertyField from "../components/PropertyField";
@@ -70,13 +69,12 @@ export default function ViewLogModal({
   if (!visible) return null;
 
   return (
-    <ModalLarge visible={visible} onRequestClose={onClose}>
-      <ModalLarge.Header>
-        <ModalLarge.Title>{log ? log.typeName : "Log Details"}</ModalLarge.Title>
-        <Pressable onPress={onClose} hitSlop={8}>
-          <Ionicons name="close" size={24} color={colors.brand} />
-        </Pressable>
-      </ModalLarge.Header>
+    <ModalLarge
+      visible={visible}
+      onRequestClose={onClose}
+      title={log ? log.typeName : "Log Details"}
+      closeIconColor={colors.brand}
+    >
 
       <ModalLarge.Body scroll>{renderModalContent()}</ModalLarge.Body>
 

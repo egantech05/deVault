@@ -1,6 +1,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Modal, View, Text, TextInput, Pressable, Alert, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, TextInput, Pressable, Alert, ScrollView, ActivityIndicator } from "react-native";
+import ModalLarge from "../../components/ModalLarge";
 
 
 export default function AddComponentModal({ visible, onClose, onCreate, searchCatalog, styles, colors }) {
@@ -88,137 +89,127 @@ export default function AddComponentModal({ visible, onClose, onCreate, searchCa
     if (!visible) return null;
 
     return (
-        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-            <View style={styles.modalOverlay}>
-                <View style={styles.modal}>
-                    {/* Header (matches your other modals) */}
-                    <View style={styles.modalHeader}>
-                        <Text style={styles.modalTitle}>Add Component</Text>
-                        <Pressable onPress={onClose}><Text style={{ color: "white", fontWeight: "700" }}>✕</Text></Pressable>
-                    </View>
+        <ModalLarge
+            visible={visible}
+            onRequestClose={onClose}
+            title="Add Component"
+            titleStyle={styles.modalTitle}
+        >
 
-                    {/* Body */}
-                    <ScrollView
-                        style={styles.modalScrollView}
-                        showsVerticalScrollIndicator={false}
-                        keyboardShouldPersistTaps="handled"
-                        contentContainerStyle={styles.scrollPadBottom}
-                    >
-                        <View style={styles.modalContent}>
-                            {/* Model with suggestions */}
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.label}>Model *</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    value={model}
-                                    onChangeText={(t) => {
-                                        setModel(t);
-                                        setPicked(null);
-                                    }}
-                                    placeholder=" "
-                                    placeholderTextColor="#888"
-                                />
-                                {(suggestions.length > 0 || loadingSugg) && (
-                                    <View style={suggestBoxLight}>
-                                        {loadingSugg ? (
-                                            <View style={suggestItemLight}><ActivityIndicator /></View>
-                                        ) : (
-                                            <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 240 }}>
-                                                {suggestions.map(s => (
-                                                    <Pressable
-                                                        key={s.id}
-                                                        onPress={() => {
-                                                            setModel(s.model || "");
-                                                            setManufacturer(s.manufacturer || "");
-                                                            setDescription(s.description || "");
-                                                            setPicked(s);
-                                                        }}
-                                                        style={({ pressed }) => [suggestItemLight, pressed && { opacity: 0.85 }]}
-                                                    >
-                                                        <Text style={suggestTextMainLight} numberOfLines={1}>
-                                                            {s.model} {s.manufacturer ? `· ${s.manufacturer}` : ""}
-                                                        </Text>
-                                                        {!!s.description && (
-                                                            <Text style={suggestTextDimLight} numberOfLines={1}>{s.description}</Text>
-                                                        )}
-                                                    </Pressable>
-                                                ))}
-                                            </ScrollView>
-                                        )}
-                                    </View>
-                                )}
-                            </View>
-
-                            {/* Manufacturer */}
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.label}>Manufacturer</Text>
-                                {isExisting ? (
-                                    <View style={[styles.input, styles.readonlyInput, readonlyBox]}>
-                                        <Text style={readonlyText}>
-                                            {manufacturer ? manufacturer : "N/A"}
-                                        </Text>
-                                    </View>
-                                ) : (
-                                    <TextInput
-                                        style={styles.input}
-                                        value={manufacturer}
-                                        onChangeText={(t) => {
-                                            setManufacturer(t);
-                                            setPicked(null);
-                                        }}
-                                        placeholder=" "
-                                        placeholderTextColor="#888"
-                                    />
-                                )}
-                            </View>
-
-                            {/* Description */}
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.label}>Description</Text>
-                                {isExisting ? (
-                                    <View style={[styles.input, { minHeight: 90 }, styles.readonlyInput, readonlyMultiline]}>
-                                        <Text style={readonlyText}>
-                                            {description ? description : "N/A"}
-                                        </Text>
-                                    </View>
-                                ) : (
-                                    <TextInput
-                                        style={[styles.input, { minHeight: 90 }]}
-                                        value={description}
-                                        onChangeText={setDescription}
-                                        multiline
-                                        placeholder=" "
-                                        placeholderTextColor="#888"
-                                    />
-                                )}
-                            </View>
+            <ModalLarge.Body
+                scroll
+                contentContainerStyle={[styles.modalContent, styles.scrollPadBottom]}
+            >
+                {/* Model with suggestions */}
+                <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Model *</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={model}
+                        onChangeText={(t) => {
+                            setModel(t);
+                            setPicked(null);
+                        }}
+                        placeholder=" "
+                        placeholderTextColor="#888"
+                    />
+                    {(suggestions.length > 0 || loadingSugg) && (
+                        <View style={suggestBoxLight}>
+                            {loadingSugg ? (
+                                <View style={suggestItemLight}><ActivityIndicator /></View>
+                            ) : (
+                                <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 240 }}>
+                                    {suggestions.map(s => (
+                                        <Pressable
+                                            key={s.id}
+                                            onPress={() => {
+                                                setModel(s.model || "");
+                                                setManufacturer(s.manufacturer || "");
+                                                setDescription(s.description || "");
+                                                setPicked(s);
+                                            }}
+                                            style={({ pressed }) => [suggestItemLight, pressed && { opacity: 0.85 }]}
+                                        >
+                                            <Text style={suggestTextMainLight} numberOfLines={1}>
+                                                {s.model} {s.manufacturer ? `· ${s.manufacturer}` : ""}
+                                            </Text>
+                                            {!!s.description && (
+                                                <Text style={suggestTextDimLight} numberOfLines={1}>{s.description}</Text>
+                                            )}
+                                        </Pressable>
+                                    ))}
+                                </ScrollView>
+                            )}
                         </View>
-                    </ScrollView>
-
-                    {/* Footer (pinned) */}
-                    <View style={styles.modalFooter}>
-                        <View style={styles.buttonContainer}>
-                            <Pressable
-                                style={[styles.cancelButton, { flex: 1, marginRight: 8 }]}
-                                onPress={onClose}
-                                disabled={saving}
-                            >
-                                <Text style={styles.cancelButtonText}>Cancel</Text>
-                            </Pressable>
-                            <Pressable
-                                style={[styles.saveButton, { flex: 1, marginLeft: 8, opacity: canSave ? 1 : 0.6 }]}
-                                onPress={canSave ? handleSave : undefined}
-                                disabled={!canSave}
-                            >
-                                <Text style={styles.saveButtonText}>
-                                    {picked?.id ? "Add" : "Save"}
-                                </Text>
-                            </Pressable>
-                        </View>
-                    </View>
+                    )}
                 </View>
-            </View>
-        </Modal>
+
+                {/* Manufacturer */}
+                <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Manufacturer</Text>
+                    {isExisting ? (
+                        <View style={[styles.input, styles.readonlyInput, readonlyBox]}>
+                            <Text style={readonlyText}>
+                                {manufacturer ? manufacturer : "N/A"}
+                            </Text>
+                        </View>
+                    ) : (
+                        <TextInput
+                            style={styles.input}
+                            value={manufacturer}
+                            onChangeText={(t) => {
+                                setManufacturer(t);
+                                setPicked(null);
+                            }}
+                            placeholder=" "
+                            placeholderTextColor="#888"
+                        />
+                    )}
+                </View>
+
+                {/* Description */}
+                <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Description</Text>
+                    {isExisting ? (
+                        <View style={[styles.input, { minHeight: 90 }, styles.readonlyInput, readonlyMultiline]}>
+                            <Text style={readonlyText}>
+                                {description ? description : "N/A"}
+                            </Text>
+                        </View>
+                    ) : (
+                        <TextInput
+                            style={[styles.input, { minHeight: 90 }]}
+                            value={description}
+                            onChangeText={setDescription}
+                            multiline
+                            placeholder=" "
+                            placeholderTextColor="#888"
+                        />
+                    )}
+                </View>
+            </ModalLarge.Body>
+
+            <ModalLarge.Footer style={styles.modalFooter}>
+                <View style={styles.buttonContainer}>
+                    <Pressable
+                        style={[styles.cancelButton, { flex: 1, marginRight: 8 }]}
+                        onPress={onClose}
+                        disabled={saving}
+                    >
+                        <Text style={styles.cancelButtonText}>Cancel</Text>
+                    </Pressable>
+                    <Pressable
+                        style={[styles.saveButton, { flex: 1, marginLeft: 8, opacity: canSave ? 1 : 0.6 }]}
+                        onPress={canSave ? handleSave : undefined}
+                        disabled={!canSave}
+                    >
+                        <Text style={styles.saveButtonText}>
+                            {picked?.id ? "Add" : "Save"}
+                        </Text>
+                    </Pressable>
+                </View>
+            </ModalLarge.Footer>
+        </ModalLarge>
     );
 }
 

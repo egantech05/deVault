@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Alert, Pressable, Text, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import styles from "../styles";
 import { colors } from "../../../components/Styles";
 import PropertyField from "../components/PropertyField";
@@ -143,13 +142,12 @@ export default function AddLogModal({ visible, onClose, assetId, onLogCreated })
   if (!visible) return null;
 
   return (
-    <ModalLarge visible={visible} onRequestClose={onClose}>
-      <ModalLarge.Header>
-        <ModalLarge.Title>New Log</ModalLarge.Title>
-        <Pressable onPress={onClose} hitSlop={8}>
-          <Ionicons name="close" size={24} color={colors.brand} />
-        </Pressable>
-      </ModalLarge.Header>
+    <ModalLarge
+      visible={visible}
+      onRequestClose={onClose}
+      title="New Log"
+      closeIconColor={colors.brand}
+    >
 
       <ModalLarge.Body scroll>
         {!selectedTemplate ? (

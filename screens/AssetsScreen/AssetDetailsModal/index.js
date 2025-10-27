@@ -65,13 +65,12 @@ export default function AssetDetailsModal({ visible, onClose, asset, onAnySave }
     };
 
     return (
-    <ModalLarge visible={visible} onRequestClose={guardedClose}>
-      <ModalLarge.Header>
-        <ModalLarge.Title>{title}</ModalLarge.Title>
-        <Pressable onPress={guardedClose} hitSlop={8}>
-          <Ionicons name="close" size={24} color={colors.brand} />
-        </Pressable>
-      </ModalLarge.Header>
+    <ModalLarge
+      visible={visible}
+      onRequestClose={guardedClose}
+      title={title}
+      closeIconColor={colors.brand}
+    >
 
       <ModalLarge.Body
         scroll
