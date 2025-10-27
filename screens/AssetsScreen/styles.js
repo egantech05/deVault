@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
         borderColor: "#e9ecef",
     },
     helperText: { marginTop: 6, color: "#888" },
-    previewName: { marginTop: -8, marginBottom: 12, color: "#666", fontStyle: "italic" },
+    
 
     // ====== Tabs bar ======
     tabsBar: {
@@ -178,14 +178,7 @@ const styles = StyleSheet.create({
     },
     primaryChipText: { color: "white", marginLeft: 6, fontWeight: "700" },
 
-    chooserPanel: {
-        borderWidth: 1,
-        borderColor: "#e9ecef",
-        backgroundColor: "#f8f9fa",
-        borderRadius: 10,
-        padding: 12,
-        marginBottom: 12,
-    },
+
     templateGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
     templateCard: {
         backgroundColor: "white",
@@ -212,12 +205,7 @@ const styles = StyleSheet.create({
         marginBottom: 10,
     },
     logRowContent: { flex: 1, paddingRight: 12 },
-    logRowHeader: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        marginBottom: 8,
-    },
+
     logRowTitle: { fontWeight: "800", color: colors.primary, marginBottom: 8 },
     logRowActionColumn: {
         alignItems: "center",
@@ -263,17 +251,14 @@ const styles = StyleSheet.create({
     },
     docName: { fontWeight: "700", color: colors.primary },
     docMeta: { color: "#888", marginTop: 2 },
-    docActions: { flexDirection: "row", alignItems: "center", gap: 8 },
-    docActionBtn: {
-        borderWidth: 1,
-        borderColor: colors.brand,
-        borderRadius: 8,
-        paddingVertical: 6,
-        paddingHorizontal: 10,
-    },
-    docActionText: { color: colors.normal, fontWeight: "700" },
 
     scrollPadBottom: { paddingBottom: 20 },
+    docDeleteButton: {
+        padding: 6,
+        borderRadius: 999,
+        justifyContent: "center",
+        alignItems: "center",
+    },
 });
 
 export default styles;

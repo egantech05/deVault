@@ -1,18 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, Pressable, Alert, Modal, ScrollView } from "react-native";
+import { View, Text, Pressable, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import styles from "../styles";
-import { colors } from "../../../components/Styles";
-import PropertyField from "../components/PropertyField";
-import {
-  fetchLogTemplates,
-  fetchLogs,
-  insertLog,
-  updateLog,
-  deleteLogById,
-  fetchTemplateFields,
-} from "../../../services/logsApi";
+import { fetchLogs, updateLog, deleteLogById } from "../../../services/logsApi";
 import { useDatabase } from "../../../contexts/DatabaseContext";
+import AddLogModal from "./AddLogModal";
+import ViewLogModal from "./ViewLogModal";
 
 function getOrderedFieldsForModal(log) {
   if (!log) return [];
@@ -41,30 +34,22 @@ function getOrderedFieldsForModal(log) {
 export default function LogsTab({ asset }) {
   const { activeDatabaseId, openCreateModal, canDelete } = useDatabase();
 
-  const [logTemplates, setLogTemplates] = useState([]);
-  const [loadingLogTemplates, setLoadingLogTemplates] = useState(false);
-
   const [logs, setLogs] = useState([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [page, setPage] = useState({ from: 0, size: 20, hasMore: true });
 
-  const [logModalVisible, setLogModalVisible] = useState(false);
+  const [logDetailVisible, setLogDetailVisible] = useState(false);
   const [logForModal, setLogForModal] = useState(null);
   const [logEditing, setLogEditing] = useState(false);
   const [logEditFields, setLogEditFields] = useState([]);
-  const [showTemplateChooser, setShowTemplateChooser] = useState(false);
-  const [selectedLogTemplate, setSelectedLogTemplate] = useState(null);
-  const [logFields, setLogFields] = useState([]);
   const [savingLog, setSavingLog] = useState(false);
+  const [addLogModalVisible, setAddLogModalVisible] = useState(false);
 
-  const closeLogModal = useCallback(() => {
-    setLogModalVisible(false);
+  const closeLogDetailModal = useCallback(() => {
+    setLogDetailVisible(false);
     setLogForModal(null);
     setLogEditing(false);
     setLogEditFields([]);
-    setShowTemplateChooser(false);
-    setSelectedLogTemplate(null);
-    setLogFields([]);
   }, []);
 
   const detailFields = useMemo(() => getOrderedFieldsForModal(logForModal), [logForModal]);
@@ -76,23 +61,6 @@ export default function LogsTab({ asset }) {
     }
     return true;
   }, [activeDatabaseId, openCreateModal]);
-
-  const loadLogTemplates = useCallback(async () => {
-    if (!activeDatabaseId) {
-      setLogTemplates([]);
-      return;
-    }
-    setLoadingLogTemplates(true);
-    try {
-      const data = await fetchLogTemplates(activeDatabaseId);
-      setLogTemplates(data);
-    } catch (error) {
-      console.error("loadLogTemplates error:", error);
-      setLogTemplates([]);
-    } finally {
-      setLoadingLogTemplates(false);
-    }
-  }, [activeDatabaseId]);
 
   const loadAssetLogs = useCallback(
     async (assetId, from = 0, size = 20) => {
@@ -128,100 +96,19 @@ export default function LogsTab({ asset }) {
   useEffect(() => {
     if (!asset?.id) {
       setLogs([]);
-      setLogTemplates([]);
       return;
     }
-    loadLogTemplates();
     loadAssetLogs(asset.id, 0, page.size);
-  }, [asset?.id, loadLogTemplates, loadAssetLogs, page.size]);
+  }, [asset?.id, loadAssetLogs, page.size]);
 
-  const startNewLog = async () => {
+  const startNewLog = useCallback(() => {
     if (!ensureDatabaseSelected()) return;
-    if (!logTemplates.length) await loadLogTemplates();
-    setSelectedLogTemplate(null);
-    setLogFields([]);
-    setLogEditing(false);
-    setLogEditFields([]);
-    setLogForModal(null);
-    setShowTemplateChooser(true);
-    setLogModalVisible(true);
-  };
+    setAddLogModalVisible(true);
+  }, [ensureDatabaseSelected]);
 
-  const chooseLogTemplate = async (tpl) => {
-    setSelectedLogTemplate(tpl);
-    setShowTemplateChooser(false);
-  
-    try {
-      const { data, error } = await fetchTemplateFields(tpl.id);
-      if (error) throw error;
-  
-      const fields = (data || []).map((f) => ({
-        id: f.id,
-        name: f.property_name || "",
-        property_type: f.property_type || "text",
-        default_value: f.default_value ?? "",
-        display_order: f.display_order ?? 0,
-        value: f.default_value ?? "",
-      }));
-      setLogFields(fields);
-    } catch (err) {
-      console.error("load template fields error:", err);
-      setLogFields([]);
-    }
-  };
-  const saveNewLog = async () => {
-    if (!asset?.id || !selectedLogTemplate) {
-      Alert.alert("Validation", "Pick a log template first.");
-      return;
-    }
-    if (!ensureDatabaseSelected()) return;
-
-    setSavingLog(true);
-    try {
-      const value_map = {};
-      for (const f of logFields) {
-        const key = (f.name || "").trim();
-        if (key) value_map[key] = f.value ?? null;
-      }
-      const fields_snapshot = logFields.map(({ id, name, property_type, default_value, display_order }) => ({
-        id,
-        name,
-        property_type,
-        default_value,
-        display_order,
-      }));
-
-      const { data, error } = await insertLog(activeDatabaseId, {
-        asset_id: asset.id,
-        template_id: selectedLogTemplate.id,
-        value_map,
-        extras: {},
-        fields_snapshot,
-      });
-
-      if (error) throw error;
-
-      setLogs((prev) => [
-        {
-          id: data.id,
-          template_id: data.template_id,
-          typeName: data.log_templates?.name || selectedLogTemplate.name,
-          data: data.value_map || {},
-          fields_snapshot: data.fields_snapshot || fields_snapshot || [],
-          created_at: data.created_at,
-        },
-        ...prev,
-      ]);
-
-      closeLogModal();
-      Alert.alert("Success", "Log saved.");
-    } catch (e) {
-      console.error("saveNewLog error:", e);
-      Alert.alert("Error", e.message || "Failed to save log.");
-    } finally {
-      setSavingLog(false);
-    }
-  };
+  const handleLogCreated = useCallback((newLog) => {
+    setLogs((prev) => [newLog, ...prev]);
+  }, []);
 
   const handleDeleteLog = async (logId) => {
     if (!canDelete) {
@@ -234,7 +121,7 @@ export default function LogsTab({ asset }) {
       if (error) throw error;
       setLogs((prev) => prev.filter((l) => l.id !== logId));
       if (logForModal?.id === logId) {
-        closeLogModal();
+        closeLogDetailModal();
       }
       Alert.alert("Deleted", "Log removed.");
     } catch (e) {
@@ -248,6 +135,17 @@ export default function LogsTab({ asset }) {
     setLogEditFields(detailFields.map((f) => ({ ...f })));
     setLogEditing(true);
   };
+
+  const cancelEditFromModal = useCallback(() => {
+    setLogEditing(false);
+    setLogEditFields([]);
+  }, []);
+
+  const handleLogFieldChange = useCallback((_, idx, value) => {
+    setLogEditFields((prev) =>
+      prev.map((item, itemIdx) => (itemIdx === idx ? { ...item, value } : item))
+    );
+  }, []);
 
   const saveLogFromDetail = async () => {
     if (!logForModal?.id || !ensureDatabaseSelected()) return;
@@ -298,8 +196,7 @@ export default function LogsTab({ asset }) {
           : prev
       );
 
-      setLogEditFields([]);
-      setLogEditing(false);
+      cancelEditFromModal();
       Alert.alert("Success", "Log updated.");
     } catch (e) {
       console.error("saveLogFromDetail error:", e);
@@ -341,10 +238,7 @@ export default function LogsTab({ asset }) {
                   setLogForModal(item);
                   setLogEditing(false);
                   setLogEditFields([]);
-                  setShowTemplateChooser(false);
-                  setSelectedLogTemplate(null);
-                  setLogFields([]);
-                  setLogModalVisible(true);
+                  setLogDetailVisible(true);
                 }}
               >
                 <Text style={styles.logRowTitle}>{item.typeName}</Text>
@@ -400,181 +294,25 @@ export default function LogsTab({ asset }) {
         )}
       </View>
 
-      <Modal
-        visible={logModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={closeLogModal}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modal, { height: "60%" }]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {logForModal ? logForModal.typeName : "New Log"}
-              </Text>
-              <Pressable onPress={closeLogModal}>
-                <Ionicons name="close" size={24} color={colors.brand} />
-              </Pressable>
-            </View>
-
-            <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false}>
-              <View style={styles.modalContent}>
-                {logForModal ? (
-                  logEditing ? (
-                    logEditFields.map((f, idx) => (
-                      <View key={`${f.id}-${idx}`} style={styles.propertyContainer}>
-                        <Text style={{ marginBottom: 6, color: colors.primary, fontWeight: "600" }}>
-                          {f.name}
-                        </Text>
-                        <PropertyField
-                          type={f.property_type}
-                          value={f.value}
-                          onChange={(val) =>
-                            setLogEditFields((prev) =>
-                              prev.map((x) => (x.id === f.id ? { ...x, value: val } : x))
-                            )
-                          }
-                          style={styles.input}
-                        />
-                      </View>
-                    ))
-                  ) : detailFields.length ? (
-                    detailFields.map((f, idx) => (
-                      <View key={`${f.id}-${idx}`} style={styles.propertyContainer}>
-                        <Text style={{ marginBottom: 6, color: colors.primary, fontWeight: "600" }}>
-                          {f.name}
-                        </Text>
-                        <PropertyField
-                          type={f.property_type}
-                          value={f.value}
-                          editable={false}
-                          readOnly
-                          disabled
-                          style={[styles.input, styles.readonlyInput]}
-                        />
-                      </View>
-                    ))
-                  ) : (
-                    <Text style={{ color: "#888" }}>No values recorded for this log.</Text>
-                  )
-                ) : (
-                  <>
-                    {showTemplateChooser && (
-                      <View>
-                        <Text style={[styles.label, { marginBottom: 8 }]}>Choose a template</Text>
-                        {loadingLogTemplates ? (
-                          <Text style={{ color: "#666" }}>Loading templates…</Text>
-                        ) : logTemplates.length ? (
-                          logTemplates.map((tpl) => (
-                            <Pressable
-                              key={tpl.id}
-                              style={styles.templateCard}
-                              onPress={() => chooseLogTemplate(tpl)}
-                            >
-                              <Text style={styles.templateCardTitle}>{tpl.name}</Text>
-                            </Pressable>
-                          ))
-                        ) : (
-                          <Text style={{ color: "#888" }}>No log templates yet.</Text>
-                        )}
-                      </View>
-                    )}
-
-                    {!!selectedLogTemplate && (
-                      <>
-                        <Text style={[styles.label, { marginBottom: 8 }]}>
-                          {selectedLogTemplate?.name}
-                        </Text>
-                        {logFields.map((f) => (
-                          <View key={f.id} style={styles.propertyContainer}>
-                            <Text
-                              style={{ marginBottom: 6, color: colors.primary, fontWeight: "600" }}
-                            >
-                              {f.name}
-                            </Text>
-                            <PropertyField
-                              type={f.property_type}
-                              value={f.value}
-                              onChange={(val) =>
-                                setLogFields((prev) =>
-                                  prev.map((x) => (x.id === f.id ? { ...x, value: val } : x))
-                                )
-                              }
-                              style={styles.input}
-                            />
-                          </View>
-                        ))}
-                      </>
-                    )}
-                  </>
-                )}
-              </View>
-            </ScrollView>
-
-            <View style={styles.modalFooter}>
-              {logForModal ? (
-                logEditing ? (
-                  <View style={[styles.buttonContainer, { alignItems: "stretch" }]}>
-                    <Pressable
-                      style={[styles.cancelButton, { flex: 1, marginRight: 8 }]}
-                      onPress={() => {
-                        setLogEditing(false);
-                        setLogEditFields([]);
-                      }}
-                      disabled={savingLog}
-                    >
-                      <Text style={styles.cancelButtonText}>Cancel</Text>
-                    </Pressable>
-                    <Pressable
-                      style={[styles.saveButton, { flex: 1, opacity: savingLog ? 0.6 : 1 }]}
-                      onPress={saveLogFromDetail}
-                      disabled={savingLog}
-                    >
-                      <Text style={styles.saveButtonText}>
-                        {savingLog ? "Saving…" : "Save"}
-                      </Text>
-                    </Pressable>
-                  </View>
-                ) : (
-                  <View style={[styles.buttonContainer, { alignItems: "center" }]}>
-                    <Pressable
-                      style={[styles.footerPrimaryButton, { flex: 1 }]}
-                      onPress={beginEditFromModal}
-                    >
-                      <Text style={styles.saveButtonText}>Edit Log</Text>
-                    </Pressable>
-                  </View>
-                )
-              ) : (
-                <View style={[styles.buttonContainer, { alignItems: "stretch" }]}>
-                  <Pressable
-                    style={[styles.cancelButton, { flex: 1, marginRight: 8 }]}
-                    onPress={closeLogModal}
-                    disabled={savingLog}
-                  >
-                    <Text style={styles.cancelButtonText}>Cancel</Text>
-                  </Pressable>
-                  <Pressable
-                    style={[
-                      styles.saveButton,
-                      {
-                        flex: 1,
-                        opacity: savingLog || !selectedLogTemplate ? 0.6 : 1,
-                      },
-                    ]}
-                    onPress={saveNewLog}
-                    disabled={savingLog || !selectedLogTemplate}
-                  >
-                    <Text style={styles.saveButtonText}>
-                      {savingLog ? "Saving…" : "Create Log"}
-                    </Text>
-                  </Pressable>
-                </View>
-              )}
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <ViewLogModal
+        visible={logDetailVisible}
+        log={logForModal}
+        detailFields={detailFields}
+        logEditing={logEditing}
+        logEditFields={logEditFields}
+        savingLog={savingLog}
+        onClose={closeLogDetailModal}
+        onStartEdit={beginEditFromModal}
+        onCancelEdit={cancelEditFromModal}
+        onChangeField={handleLogFieldChange}
+        onSave={saveLogFromDetail}
+      />
+      <AddLogModal
+        visible={addLogModalVisible}
+        onClose={() => setAddLogModalVisible(false)}
+        assetId={asset?.id}
+        onLogCreated={handleLogCreated}
+      />
     </View>
   );
 }

@@ -8,6 +8,7 @@ import ComponentsTab from "./ComponentsTab";
 import { colors } from "../../../components/Styles";
 import styles from "../styles";
 import { useDatabase } from "../../../contexts/DatabaseContext";
+import ModalLarge from "../../../components/ModalLarge";
 
 const TABS = { INFO: "Info", LOGS: "Logs", DOCS: "Documents", COMPS: "Components" };
 
@@ -16,7 +17,7 @@ export default function AssetDetailsModal({ visible, onClose, asset, onAnySave }
     const infoRef = useRef(null);
     const { canDelete } = useDatabase();
 
-    // NEW: mirror InfoTab states so this component re-renders
+ 
     const [isInfoEditing, setIsInfoEditing] = useState(false);
     const [isInfoSaving, setIsInfoSaving] = useState(false);
 
@@ -64,114 +65,104 @@ export default function AssetDetailsModal({ visible, onClose, asset, onAnySave }
     };
 
     return (
-        <Modal visible={visible} transparent animationType="fade" onRequestClose={guardedClose}>
-            <View style={styles.modalOverlay}>
-                <View style={[styles.modal, { height: "80%" }]}>
+    <ModalLarge visible={visible} onRequestClose={guardedClose}>
+      <ModalLarge.Header>
+        <ModalLarge.Title>{title}</ModalLarge.Title>
+        <Pressable onPress={guardedClose} hitSlop={8}>
+          <Ionicons name="close" size={24} color={colors.brand} />
+        </Pressable>
+      </ModalLarge.Header>
 
-                    {/* Header */}
-                    <View style={styles.modalHeader}>
-                        <Text style={styles.modalTitle}>{title}</Text>
-                        <Pressable onPress={guardedClose}>
-                            <Ionicons name="close" size={24} color={colors.brand} />
-                        </Pressable>
-                    </View>
+      <ModalLarge.Body
+        scroll
+        style={styles.modalScrollView}
+        contentContainerStyle={styles.scrollPadBottom}
+      >
+        <View style={styles.tabsBar}>
+          <View style={styles.tabsList}>
+            {[TABS.INFO, TABS.LOGS, TABS.DOCS, TABS.COMPS].map((t) => (
+              <Pressable
+                key={t}
+                onPress={() => guardedSwitchTab(t)}
+                style={[styles.tabItem, tab === t && styles.tabItemActive]}
+              >
+                <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>{t}</Text>
+              </Pressable>
+            ))}
+          </View>
 
-                    {/* Tabs */}
-                    <View style={styles.tabsBar}>
-                        <View style={styles.tabsList}>
-                            {[TABS.INFO, TABS.LOGS, TABS.DOCS, TABS.COMPS].map((t) => (
-                                <Pressable
-                                    key={t}
-                                    onPress={() => guardedSwitchTab(t)}
-                                    style={[styles.tabItem, tab === t && styles.tabItemActive]}
-                                >
-                                    <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>{t}</Text>
-                                </Pressable>
-                            ))}
-                        </View>
+          {tab === TABS.INFO && canDelete && (
+            <Pressable
+              onPress={() => infoRef.current?.remove?.()}
+              style={styles.tabActionButton}
+              hitSlop={8}
+            >
+              <Ionicons name="trash" size={20} color="#d9534f" />
+            </Pressable>
+          )}
+        </View>
 
-                        {tab === TABS.INFO && canDelete && (
-                            <Pressable
-                                onPress={() => infoRef.current?.remove?.()}
-                                style={styles.tabActionButton}
-                                hitSlop={8}
-                            >
-                                <Ionicons name="trash" size={20} color="#d9534f" />
-                            </Pressable>
-                        )}
-                    </View>
+        <View style={styles.modalContent}>
+          {tab === TABS.INFO && (
+            <InfoTab
+              ref={infoRef}
+              asset={asset}
+              styles={styles}
+              colors={colors}
+              onSaved={onAnySave}
+              onDeleted={() => {
+                onAnySave?.();
+                onClose?.();
+              }}
+              onEditingChange={setIsInfoEditing}
+              onSavingChange={setIsInfoSaving}
+            />
+          )}
 
-                    {/* Content */}
-                    <ScrollView
-                        style={styles.modalScrollView}
-                        showsVerticalScrollIndicator={false}
-                        keyboardShouldPersistTaps="handled"
-                        contentContainerStyle={styles.scrollPadBottom}
-                    >
-                        <View style={styles.modalContent}>
-                            {tab === TABS.INFO && (
-                                <InfoTab
-                                    ref={infoRef}
-                                    asset={asset}
-                                    styles={styles}
-                                    colors={colors}
-                                    onSaved={onAnySave}
-                                    onDeleted={() => {
-                                        onAnySave?.();
-                                        onClose?.();
-                                    }}
-                                    onEditingChange={setIsInfoEditing}  // <— NEW
-                                    onSavingChange={setIsInfoSaving}    // <— NEW
-                                />
-                            )}
-                            {tab === TABS.LOGS && <LogsTab asset={asset} styles={styles} colors={colors} />}
-                            {tab === TABS.DOCS && <DocsTab asset={asset} styles={styles} colors={colors} />}
-                            {tab === TABS.COMPS && <ComponentsTab asset={asset} styles={styles} colors={colors} />}
-                        </View>
-                    </ScrollView>
+          {tab === TABS.LOGS && <LogsTab asset={asset} styles={styles} colors={colors} />}
+          {tab === TABS.DOCS && <DocsTab asset={asset} styles={styles} colors={colors} />}
+          {tab === TABS.COMPS && <ComponentsTab asset={asset} styles={styles} colors={colors} />}
+        </View>
+      </ModalLarge.Body>
 
-                    {/* Footer (uses your existing styles) */}
-                    <View style={styles.modalFooter}>
-                        <View style={[styles.buttonContainer, { alignItems: "stretch" }]}>
+      <ModalLarge.Footer>
+        <View style={[styles.buttonContainer, { alignItems: "stretch" }]}>
+          {tab === TABS.INFO ? (
+            isInfoEditing ? (
+              <View style={{ flex: 1, flexDirection: "row" }}>
+                <Pressable
+                  style={[styles.cancelButton, { flex: 1, marginRight: 8 }]}
+                  onPress={() => infoRef.current?.cancelEdit?.()}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </Pressable>
 
-                            {tab === TABS.INFO ? (
-                                isInfoEditing ? (
-                                    <View style={{ flex: 1, flexDirection: "row" }}>
-                                        <Pressable
-                                            style={[styles.cancelButton, { flex: 1, marginRight: 8 }]}
-                                            onPress={() => infoRef.current?.cancelEdit?.()}
-                                        >
-                                            <Text style={styles.cancelButtonText}>Cancel</Text>
-                                        </Pressable>
-
-                                        <Pressable
-                                            style={[styles.saveButton, { flex: 1 }]}
-                                            disabled={isInfoSaving}
-                                            onPress={() => infoRef.current?.save?.()}
-                                        >
-                                            <Text style={styles.saveButtonText}>
-                                                {isInfoSaving ? "Saving..." : "Save Changes"}
-                                            </Text>
-                                        </Pressable>
-                                    </View>
-                                ) : (
-                                    <Pressable
-                                        style={[styles.saveButton, { flex: 1, marginLeft: 0 }]}
-                                        onPress={() => infoRef.current?.beginEdit?.()}
-                                    >
-                                        <Text style={styles.saveButtonText}>Edit</Text>
-                                    </Pressable>
-                                )
-                            ) : (
-                                <>
-                                    <View style={{ flex: 1, marginRight: 8 }} />
-                                    <View style={{ flex: 1 }} />
-                                </>
-                            )}
-                        </View>
-                    </View>
-                </View>
-            </View>
-        </Modal>
+                <Pressable
+                  style={[styles.saveButton, { flex: 1 }]}
+                  disabled={isInfoSaving}
+                  onPress={() => infoRef.current?.save?.()}
+                >
+                  <Text style={styles.saveButtonText}>
+                    {isInfoSaving ? "Saving..." : "Save Changes"}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable
+                style={[styles.saveButton, { flex: 1, marginLeft: 0 }]}
+                onPress={() => infoRef.current?.beginEdit?.()}
+              >
+                <Text style={styles.saveButtonText}>Edit</Text>
+              </Pressable>
+            )
+          ) : (
+            <>
+              <View style={{ flex: 1, marginRight: 8 }} />
+              <View style={{ flex: 1 }} />
+            </>
+          )}
+        </View>
+      </ModalLarge.Footer>
+    </ModalLarge>
     );
 }
