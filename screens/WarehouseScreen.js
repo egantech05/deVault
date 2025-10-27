@@ -14,7 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, commonStyles } from "../components/Styles";
 import { getCardSize } from "../utils/cardLayout";
 import { supabase } from "../lib/supabase";
-import WarehouseModal from "./WarehouseModal";
+import WarehouseModal from "./WarehouseScreen/WarehouseModal";
 import styles from "./WarehouseScreen/styles";
 import AddComponentModal from "./WarehouseScreen/AddComponentModal";
 import { useDatabase } from "../contexts/DatabaseContext";

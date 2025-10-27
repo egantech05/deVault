@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, ScrollView } from "react-native";
-import { supabase } from "../../lib/supabase";
-import { useDatabase } from "../../contexts/DatabaseContext";
+import { supabase } from "../../../lib/supabase";
+import { useDatabase } from "../../../contexts/DatabaseContext";
 
 export default function HistoricalTab({ item }) {
   const { activeDatabaseId } = useDatabase();

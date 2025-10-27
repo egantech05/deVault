@@ -1,9 +1,9 @@
-// screens/WarehouseModal/InfoTab.js
+// screens/WarehouseScreen/WarehouseModal/InfoTab.js
 import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, TextInput, StyleSheet, Pressable, Alert, ActivityIndicator } from "react-native";
-import { colors } from "../../components/Styles";
-import { supabase } from "../../lib/supabase";
-import { useDatabase } from "../../contexts/DatabaseContext";
+import { colors } from "../../../components/Styles";
+import { supabase } from "../../../lib/supabase";
+import { useDatabase } from "../../../contexts/DatabaseContext";
 
 export default function InfoTab({ item, onSaved }) {
     const { activeDatabaseId } = useDatabase();

@@ -1,9 +1,8 @@
 // screens/WarehouseScreen/AddComponentModal.js
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Modal, View, Text, TextInput, Pressable, Alert, ActivityIndicator, ScrollView } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { View, Text, TextInput, Pressable, Alert, ActivityIndicator } from "react-native";
+import ModalLarge from "../../components/ModalLarge";
 import styles from "./styles";
-import { colors } from "../../components/Styles";
 import { supabase } from "../../lib/supabase";
 import { useDatabase } from "../../contexts/DatabaseContext";
 
@@ -175,138 +174,125 @@ export default function AddComponentModal({ visible, onClose, onCreated }) {
     if (!visible) return null;
 
     return (
-        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-            <View style={styles.modalOverlay}>
-                <View style={styles.modal}>
-                    {/* Header */}
-                    <View style={styles.modalHeader}>
-                        <Text style={styles.modalTitle}>Add Component</Text>
-                        <Pressable onPress={onClose}>
-                            <Ionicons name="close" size={22} color={colors.brand} />
-                        </Pressable>
-                    </View>
-
-                    {/* Body (scrollable) */}
-                    <ScrollView
-                        style={styles.modalScrollView}
-                        showsVerticalScrollIndicator={false}
-                        keyboardShouldPersistTaps="handled"
-                        contentContainerStyle={styles.scrollPadBottom}
-                    >
-                        <View style={styles.modalContent}>
-                            {/* Model */}
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.label}>Model</Text>
-                                <TextInput
-                                    style={[
-                                        styles.input,
-                                        modelError ? { borderColor: "#d9534f" } : null
-                                    ]}
-                                    value={model}
-                                    onChangeText={setModel}
-                                    placeholder=" "
-                                    autoCapitalize="none"
-                                    autoCorrect={false}
-                                    onBlur={() => {
-                                        // force immediate validation when leaving the field
-                                        setModel(model.trim());
-                                    }}
-                                />
-                                <View style={{ minHeight: 18, marginTop: 4, flexDirection: "row", alignItems: "center" }}>
-                                    {checkingModel ? (
-                                        <ActivityIndicator size="small" />
-                                    ) : modelError ? (
-                                        <Text style={{ color: "#d9534f", fontSize: 12 }}>{modelError}</Text>
-                                    ) : null}
-                                </View>
-                            </View>
-
-                            {/* Location */}
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.label}>Location</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    value={location}
-                                    onChangeText={setLocation}
-                                    placeholder=" "
-                                />
-                            </View>
-
-                            {/* Manufacturer */}
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.label}>Manufacturer</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    value={manufacturer}
-                                    onChangeText={setManufacturer}
-                                    placeholder=" "
-                                />
-                            </View>
-
-                            {/* Description */}
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.label}>Description</Text>
-                                <TextInput
-                                    style={[styles.input, { minHeight: 90 }]}
-                                    value={description}
-                                    onChangeText={setDescription}
-                                    multiline
-                                    placeholder=" "
-                                />
-                            </View>
-
-                            {/* Minimum Stock */}
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.label}>Minimum Stock</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    value={minStock}
-                                    onChangeText={setMinStock}
-                                    keyboardType="numeric"
-                                    inputMode="numeric"
-                                    placeholder="0"
-                                />
-                            </View>
-
-                            {/* Initial Quantity */}
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.label}>Initial Quantity</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    value={initialQty}
-                                    onChangeText={setInitialQty}
-                                    keyboardType="numeric"
-                                    inputMode="numeric"
-                                    placeholder="0"
-                                />
-                            </View>
-                        </View>
-                    </ScrollView>
-
-                    {/* Footer */}
-                    <View style={styles.modalFooter}>
-                        <View className="buttonContainer" style={styles.buttonContainer}>
-                            <Pressable
-                                style={[styles.cancelButton, { flex: 1, marginRight: 8 }]}
-                                onPress={onClose}
-                                disabled={saving}
-                            >
-                                <Text style={styles.cancelButtonText}>Cancel</Text>
-                            </Pressable>
-                            <Pressable
-                                style={[
-                                    styles.saveButton,
-                                    { flex: 1, marginLeft: 8, opacity: canSave ? 1 : 0.6 }
-                                ]}
-                                onPress={handleSave}
-                                disabled={!canSave}
-                            >
-                                {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveButtonText}>Save</Text>}
-                            </Pressable>
-                        </View>
+        <ModalLarge
+            visible={visible}
+            onRequestClose={onClose}
+            title="Add Component"
+            titleStyle={styles.modalTitle}
+        >
+            <ModalLarge.Body
+                scroll
+                contentContainerStyle={[styles.modalContent, styles.scrollPadBottom]}
+            >
+                {/* Model */}
+                <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Model</Text>
+                    <TextInput
+                        style={[
+                            styles.input,
+                            modelError ? { borderColor: "#d9534f" } : null
+                        ]}
+                        value={model}
+                        onChangeText={setModel}
+                        placeholder=" "
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                        onBlur={() => {
+                            // force immediate validation when leaving the field
+                            setModel(model.trim());
+                        }}
+                    />
+                    <View style={{ minHeight: 18, marginTop: 4, flexDirection: "row", alignItems: "center" }}>
+                        {checkingModel ? (
+                            <ActivityIndicator size="small" />
+                        ) : modelError ? (
+                            <Text style={{ color: "#d9534f", fontSize: 12 }}>{modelError}</Text>
+                        ) : null}
                     </View>
                 </View>
-            </View>
-        </Modal>
+
+                {/* Location */}
+                <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Location</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={location}
+                        onChangeText={setLocation}
+                        placeholder=" "
+                    />
+                </View>
+
+                {/* Manufacturer */}
+                <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Manufacturer</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={manufacturer}
+                        onChangeText={setManufacturer}
+                        placeholder=" "
+                    />
+                </View>
+
+                {/* Description */}
+                <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Description</Text>
+                    <TextInput
+                        style={[styles.input, { minHeight: 90 }]}
+                        value={description}
+                        onChangeText={setDescription}
+                        multiline
+                        placeholder=" "
+                    />
+                </View>
+
+                {/* Minimum Stock */}
+                <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Minimum Stock</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={minStock}
+                        onChangeText={setMinStock}
+                        keyboardType="numeric"
+                        inputMode="numeric"
+                        placeholder="0"
+                    />
+                </View>
+
+                {/* Initial Quantity */}
+                <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Initial Quantity</Text>
+                    <TextInput
+                        style={styles.input}
+                        value={initialQty}
+                        onChangeText={setInitialQty}
+                        keyboardType="numeric"
+                        inputMode="numeric"
+                        placeholder="0"
+                    />
+                </View>
+            </ModalLarge.Body>
+
+            <ModalLarge.Footer style={styles.modalFooter}>
+                <View style={styles.buttonContainer}>
+                    <Pressable
+                        style={[styles.cancelButton, { flex: 1, marginRight: 8 }]}
+                        onPress={onClose}
+                        disabled={saving}
+                    >
+                        <Text style={styles.cancelButtonText}>Cancel</Text>
+                    </Pressable>
+                    <Pressable
+                        style={[
+                            styles.saveButton,
+                            { flex: 1, marginLeft: 8, opacity: canSave ? 1 : 0.6 }
+                        ]}
+                        onPress={handleSave}
+                        disabled={!canSave}
+                    >
+                        {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveButtonText}>Save</Text>}
+                    </Pressable>
+                </View>
+            </ModalLarge.Footer>
+        </ModalLarge>
     );
 }
