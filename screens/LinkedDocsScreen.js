@@ -17,6 +17,7 @@ import { useLinkedDocsList } from "../hooks/useLinkedDocuments";
 import AddLinkedDocModal from "./LinkedDocumentsScreen/AddLinkedDocModal";
 import { supabase } from "../lib/supabase";
 import { useDatabase } from "../contexts/DatabaseContext";
+import ModalSmall from "../components/ModalSmall";
 
 const linkedDocRowBaseStyle = {
     flexDirection: "row",
@@ -53,6 +54,9 @@ export default function LinkedDocumentsScreen() {
     const [modalVisible, setModalVisible] = useState(false);
     const { search, setSearch, rows, loading, reload } = useLinkedDocsList();
     const { activeDatabaseId, openCreateModal, canDelete } = useDatabase();
+    const [pendingDeleteDoc, setPendingDeleteDoc] = useState(null);
+    const [deletingDoc, setDeletingDoc] = useState(false);
+    const modalStyles = ModalSmall.styles;
 
     const openCreateModalIfNeeded = () => {
         if (!activeDatabaseId) {
@@ -65,49 +69,49 @@ export default function LinkedDocumentsScreen() {
     const title = useMemo(() => "Linked Documents", []);
 
     // Delete document (and cascade all linked rules)
-    const deleteDocumentAndRules = async (doc) => {
+    const requestDeleteDocument = (doc) => {
+        if (!canDelete) {
+            Alert.alert("Permission", "Only admins can delete documents.");
+            return;
+        }
         if (!openCreateModalIfNeeded()) return;
-        const go = async () => {
-            try {
-                    // 1️⃣ Delete from storage (fail closed except when already missing)
-                if (doc?.storage_path) {
-                    const { bucket, path } = parseStoragePath(doc.storage_path);
-                    if (bucket && path) {
-                        const { error: sErr } = await supabase.storage.from(bucket).remove([path]);
-                        if (sErr) {
-                            const msg = sErr.message || "Storage delete failed";
-                            const isNotFound = /not\s*found|No such file/i.test(msg);
-                            if (!isNotFound) {
-                                throw new Error(`Could not delete file from storage: ${msg}`);
-                            }
+        setPendingDeleteDoc(doc);
+    };
+
+    const performDeleteDocument = async () => {
+        if (!pendingDeleteDoc) return;
+        const doc = pendingDeleteDoc;
+        if (!openCreateModalIfNeeded()) {
+            setPendingDeleteDoc(null);
+            return;
+        }
+
+        setDeletingDoc(true);
+        try {
+            if (doc?.storage_path) {
+                const { bucket, path } = parseStoragePath(doc.storage_path);
+                if (bucket && path) {
+                    const { error: sErr } = await supabase.storage.from(bucket).remove([path]);
+                    if (sErr) {
+                        const msg = sErr.message || "Storage delete failed";
+                        const isNotFound = /not\s*found|No such file/i.test(msg);
+                        if (!isNotFound) {
+                            throw new Error(`Could not delete file from storage: ${msg}`);
                         }
                     }
                 }
-
-                // 2️⃣ Delete from DB
-                const { error: dErr } = await supabase.from("documents").delete().eq("id", doc.id);
-                if (dErr) throw dErr;
-
-                await reload();
-            } catch (e) {
-                console.error("deleteDocumentAndRules error:", e);
-                Alert.alert("Delete Failed", e.message || "Failed to delete document.");
             }
-        };
 
-        if (Platform.OS === "web") {
-            if (window.confirm(`Delete "${doc?.name ?? "document"}" and unlink it from all assets?`)) {
-                await go();
-            }
-        } else {
-            Alert.alert(
-                "Delete Document",
-                `Delete "${doc?.name ?? "document"}" and unlink it from all assets?`,
-                [
-                    { text: "Cancel", style: "cancel" },
-                    { text: "Delete", style: "destructive", onPress: go },
-                ]
-            );
+            const { error: dErr } = await supabase.from("documents").delete().eq("id", doc.id);
+            if (dErr) throw dErr;
+
+            await reload();
+            setPendingDeleteDoc(null);
+        } catch (e) {
+            console.error("deleteDocumentAndRules error:", e);
+            Alert.alert("Delete Failed", e.message || "Failed to delete document.");
+        } finally {
+            setDeletingDoc(false);
         }
     };
 
@@ -173,7 +177,7 @@ export default function LinkedDocumentsScreen() {
                                 {/* Delete icon (floats right center) */}
                                 {canDelete ? (
                                     <Pressable
-                                        onPress={() => deleteDocumentAndRules(doc)}
+                                        onPress={() => requestDeleteDocument(doc)}
                                         style={{
                                             padding: 8,
                                             borderRadius: 8,
@@ -201,6 +205,41 @@ export default function LinkedDocumentsScreen() {
                     reload();
                 }}
             />
+
+            <ModalSmall
+                visible={!!pendingDeleteDoc}
+                onRequestClose={() => !deletingDoc && setPendingDeleteDoc(null)}
+                animationType="fade"
+            >
+                <ModalSmall.Title>Delete Document</ModalSmall.Title>
+                <ModalSmall.Subtitle>
+                    {pendingDeleteDoc
+                        ? `Delete "${pendingDeleteDoc.name || "document"}" and unlink it from all assets?`
+                        : "Delete this document and unlink it from all assets?"}
+                </ModalSmall.Subtitle>
+                <ModalSmall.Footer>
+                    <Pressable
+                        onPress={() => setPendingDeleteDoc(null)}
+                        disabled={deletingDoc}
+                        style={modalStyles.cancelButton}
+                    >
+                        <Text style={modalStyles.cancelText}>Cancel</Text>
+                    </Pressable>
+                    <Pressable
+                        onPress={performDeleteDocument}
+                        disabled={deletingDoc}
+                        style={[
+                            modalStyles.primaryButton,
+                            { backgroundColor: "#dc2626" },
+                            deletingDoc && modalStyles.primaryButtonDisabled,
+                        ]}
+                    >
+                        <Text style={modalStyles.primaryButtonText}>
+                            {deletingDoc ? "Deleting…" : "Delete"}
+                        </Text>
+                    </Pressable>
+                </ModalSmall.Footer>
+            </ModalSmall>
         </View>
     );
 }

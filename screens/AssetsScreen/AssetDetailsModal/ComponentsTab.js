@@ -5,11 +5,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { useComponents } from "../../../hooks/useComponents";
 import AddComponentModal from "../AddComponentModal";
 import { useDatabase } from "../../../contexts/DatabaseContext";
+import ModalSmall from "../../../components/ModalSmall";
 
 export default function ComponentsTab({ asset, styles, colors }) {
     const { items, loading, remove, create, searchCatalog } = useComponents(asset.id);
     const { canDelete } = useDatabase();
     const [isModal, setIsModal] = useState(false);
+    const [deleteId, setDeleteId] = useState(null);
+    const [deleting, setDeleting] = useState(false);
+    const modalStyles = ModalSmall.styles;
 
     const handleDelete = async (id) => {
         if (!canDelete) {
@@ -17,9 +21,19 @@ export default function ComponentsTab({ asset, styles, colors }) {
             return;
         }
         try {
-            await remove(id);           // await to catch errors
+            setDeleting(true);
+            await remove(id);
+            setDeleteId(null);
         } catch (e) {
             console.warn("Delete failed:", e?.message || e);
+            const msg = e?.message || "Failed to remove component.";
+            if (Platform.OS === "web") {
+                alert(msg);
+            } else {
+                Alert.alert("Remove Component", msg);
+            }
+        } finally {
+            setDeleting(false);
         }
     };
 
@@ -28,20 +42,7 @@ export default function ComponentsTab({ asset, styles, colors }) {
             Alert.alert("Permission", "Only admins can delete components.");
             return;
         }
-        if (Platform.OS === "web") {
-            if (window.confirm("Remove component? This will detach it from the asset.")) {
-                handleDelete(id);
-            }
-        } else {
-            Alert.alert(
-                "Remove component?",
-                "This will detach it from the asset.",
-                [
-                    { text: "Cancel", style: "cancel" },
-                    { text: "Remove", style: "destructive", onPress: () => handleDelete(id) },
-                ]
-            );
-        }
+        setDeleteId(id);
     };
 
     return (
@@ -93,6 +94,13 @@ export default function ComponentsTab({ asset, styles, colors }) {
                 styles={styles}
                 colors={colors}
             />
+
+            <ComponentsTabDeleteModal
+                visible={!!deleteId}
+                deleting={deleting}
+                onCancel={() => !deleting && setDeleteId(null)}
+                onConfirm={() => handleDelete(deleteId)}
+            />
         </View>
     );
 }
@@ -108,3 +116,28 @@ const local = StyleSheet.create({
     dashedAdd: { marginTop: 10, paddingVertical: 14, paddingHorizontal: 12, borderWidth: 2, borderStyle: "dashed", borderRadius: 10, alignItems: "center", justifyContent: "center", flexDirection: "row", opacity: 0.9 },
     dashedAddText: { marginLeft: 6, color: "#bbb", fontWeight: "600" },
 });
+
+// Confirmation modal for delete
+export function ComponentsTabDeleteModal({ visible, onCancel, onConfirm, deleting }) {
+    const modalStyles = ModalSmall.styles;
+    return (
+        <ModalSmall visible={visible} onRequestClose={onCancel} animationType="fade">
+            <ModalSmall.Title>Remove Component?</ModalSmall.Title>
+            <ModalSmall.Subtitle>
+                This will detach it from the asset.
+            </ModalSmall.Subtitle>
+            <ModalSmall.Footer>
+                <Pressable onPress={onCancel} disabled={deleting} style={modalStyles.cancelButton}>
+                    <Text style={modalStyles.cancelText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                    onPress={onConfirm}
+                    disabled={deleting}
+                    style={[modalStyles.primaryButton, deleting && modalStyles.primaryButtonDisabled, { backgroundColor: "#dc2626" }]}
+                >
+                    <Text style={modalStyles.primaryButtonText}>{deleting ? "Removing…" : "Remove"}</Text>
+                </Pressable>
+            </ModalSmall.Footer>
+        </ModalSmall>
+    );
+}

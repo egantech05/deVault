@@ -5,10 +5,11 @@ import React, {
     useRef,
     useState,
   } from "react";
-  import { View, Text, Alert, Platform } from "react-native";
+  import { View, Text, Alert, Platform, Pressable } from "react-native";
   import { supabase } from "../../../lib/supabase";
   import PropertyField from "../components/PropertyField";
   import { useDatabase } from "../../../contexts/DatabaseContext";
+  import ModalSmall from "../../../components/ModalSmall";
   
   export default forwardRef(function InfoTab(
     { asset, styles, colors, onSaved, onDeleted, onEditingChange, onSavingChange },
@@ -18,6 +19,9 @@ import React, {
     const [fields, setFields] = useState([]);
     const [saving, setSaving] = useState(false);
     const [editing, setEditing] = useState(false);
+    const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
+    const [deletingAsset, setDeletingAsset] = useState(false);
+    const modalStyles = ModalSmall.styles;
     const snapshotRef = useRef(null);
   
     const setEditingNotify = (v) => {
@@ -138,66 +142,108 @@ import React, {
       }
     };
   
-    const remove = async () => {
+    const performDelete = async () => {
+      if (!canDelete) {
+        Alert.alert("Permission", "Only admins can delete assets.");
+        setConfirmDeleteVisible(false);
+        return;
+      }
+      if (!ensureDatabaseSelected()) {
+        setConfirmDeleteVisible(false);
+        return;
+      }
+
+      setDeletingAsset(true);
+      try {
+        const { error } = await supabase
+          .from("assets")
+          .delete()
+          .eq("id", asset.id)
+          .eq("database_id", activeDatabaseId);
+        if (error) throw error;
+        Alert.alert("Deleted", "Asset removed.");
+        onDeleted?.();
+        setConfirmDeleteVisible(false);
+      } catch (e) {
+        console.error("InfoTab delete error:", e);
+        Alert.alert("Error", e.message || "Failed to delete asset.");
+      } finally {
+        setDeletingAsset(false);
+      }
+    };
+
+    const remove = () => {
       if (!canDelete) {
         Alert.alert("Permission", "Only admins can delete assets.");
         return;
       }
-      const runDelete = async () => {
-        if (!ensureDatabaseSelected()) return;
-        try {
-          const { error } = await supabase
-            .from("assets")
-            .delete()
-            .eq("id", asset.id)
-            .eq("database_id", activeDatabaseId);
-          if (error) throw error;
-          Alert.alert("Deleted", "Asset removed.");
-          onDeleted?.();
-        } catch (e) {
-          console.error("InfoTab delete error:", e);
-          Alert.alert("Error", e.message || "Failed to delete asset.");
-        }
-      };
-  
-      if (Platform.OS === "web") {
-        if (window.confirm("This will remove the asset and its values. Continue?")) await runDelete();
-      } else {
-        Alert.alert("Delete Asset", "This will remove the asset and its values. Continue?", [
-          { text: "Cancel", style: "cancel" },
-          { text: "Delete", style: "destructive", onPress: runDelete },
-        ]);
-      }
+      if (!ensureDatabaseSelected()) return;
+      setConfirmDeleteVisible(true);
     };
   
     return (
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Properties</Text>
-  
-        {fields.length === 0 && (
-          <Text style={{ color: "#888" }}>No properties available for this template.</Text>
-        )}
-  
-        {fields.map((p) => (
-          <View key={p.property_id} style={styles.propertyContainer}>
-            <Text style={{ marginBottom: 6, color: colors.primary, fontWeight: "600" }}>
-              {p.name} {p.type === "number" ? "(Number)" : p.type === "date" ? "(Date)" : ""}
-            </Text>
-  
-            <View pointerEvents={editing ? "auto" : "none"}>
-              <PropertyField
-                type={p.type}
-                value={p.value}
-                onChange={(v) => updateValue(p.property_id, v)}
-                style={[styles.input, !editing && styles.readonlyInput]}
-                editable={editing}
-                readOnly={!editing}
-                disabled={!editing}
-              />
+      <>
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Properties</Text>
+
+          {fields.length === 0 && (
+            <Text style={{ color: "#888" }}>No properties available for this template.</Text>
+          )}
+
+          {fields.map((p) => (
+            <View key={p.property_id} style={styles.propertyContainer}>
+              <Text style={{ marginBottom: 6, color: colors.primary, fontWeight: "600" }}>
+                {p.name} {p.type === "number" ? "(Number)" : p.type === "date" ? "(Date)" : ""}
+              </Text>
+
+              <View pointerEvents={editing ? "auto" : "none"}>
+                <PropertyField
+                  type={p.type}
+                  value={p.value}
+                  onChange={(v) => updateValue(p.property_id, v)}
+                  style={[styles.input, !editing && styles.readonlyInput]}
+                  editable={editing}
+                  readOnly={!editing}
+                  disabled={!editing}
+                />
+              </View>
             </View>
-          </View>
-        ))}
-      </View>
+          ))}
+        </View>
+
+        <ModalSmall
+          visible={confirmDeleteVisible}
+          onRequestClose={() => !deletingAsset && setConfirmDeleteVisible(false)}
+          animationType="fade"
+        >
+          <ModalSmall.Title>Delete Asset</ModalSmall.Title>
+          <ModalSmall.Subtitle>
+            This will remove the asset and its values. Continue?
+          </ModalSmall.Subtitle>
+          <ModalSmall.Footer>
+            <Pressable
+              onPress={() => setConfirmDeleteVisible(false)}
+              disabled={deletingAsset}
+              style={modalStyles.cancelButton}
+            >
+              <Text style={modalStyles.cancelText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              onPress={performDelete}
+              disabled={deletingAsset}
+              style={[
+                modalStyles.primaryButton,
+                { backgroundColor: "#dc2626" },
+                deletingAsset && modalStyles.primaryButtonDisabled,
+              ]}
+            >
+              <Text style={modalStyles.primaryButtonText}>
+                {deletingAsset ? "Deleting…" : "Delete"}
+              </Text>
+            </Pressable>
+          </ModalSmall.Footer>
+        </ModalSmall>
+      </>
     );
   });
   

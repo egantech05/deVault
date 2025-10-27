@@ -15,6 +15,7 @@ export default function ViewTemplateModal({
   onUpdateDetailProperty,
   canDelete,
   onDelete,
+  deleteDisabled = false,
   onSave,
   onClose,
 }) {
@@ -68,8 +69,17 @@ export default function ViewTemplateModal({
 
       <ModalLarge.Footer style={styles.footer}>
         {canDelete ? (
-          <Pressable style={styles.dangerButton} onPress={onDelete}>
-            <Text style={styles.dangerButtonText}>Delete</Text>
+          <Pressable
+            style={[
+              styles.dangerButton,
+              deleteDisabled && styles.dangerButtonDisabled,
+            ]}
+            onPress={onDelete}
+            disabled={deleteDisabled}
+          >
+            <Text style={styles.dangerButtonText}>
+              {deleteDisabled ? "Deleting…" : "Delete"}
+            </Text>
           </Pressable>
         ) : null}
         <Pressable style={styles.primaryButton} onPress={onSave}>
@@ -123,6 +133,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 12,
+  },
+  dangerButtonDisabled: {
+    opacity: 0.6,
   },
   dangerButtonText: {
     color: "white",

@@ -1,7 +1,6 @@
 // screens/WarehouseScreen/WarehouseModal/index.js
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  Modal,
   View,
   Text,
   Pressable,
@@ -16,23 +15,12 @@ import HistoricalTab from "./HistoricalTab";
 import styles from "../styles";
 import { colors } from "../../../components/Styles";
 import ModalLarge from "../../../components/ModalLarge";
+import ModalSmall from "../../../components/ModalSmall";
 import { supabase } from "../../../lib/supabase";
 import { useDatabase } from "../../../contexts/DatabaseContext";
 
 const TABS = { INFO: "Info", HIST: "Historical" };
-
-const modalCardShadowStyle = Platform.select({
-  web: {
-    boxShadow: "0px 8px 20px rgba(0,0,0,0.1)",
-  },
-  default: {
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
-  },
-});
+const modalSmallStyles = ModalSmall.styles;
 
 export default function WarehouseModal({ visible, onClose, item, onAnySave }) {
   const [tab, setTab] = useState(TABS.INFO);
@@ -56,6 +44,10 @@ export default function WarehouseModal({ visible, onClose, item, onAnySave }) {
   if (!visible || !currentItem || !activeDatabaseId) return null;
 
   const qtyNum = Number.parseInt(qty || "0", 10) || 0;
+  const confirmButtonCursorStyle =
+    Platform.OS === "web"
+      ? { cursor: "pointer" }
+      : null;
 
   const ensureDatabaseSelected = () => {
     if (!activeDatabaseId) {
@@ -146,7 +138,7 @@ export default function WarehouseModal({ visible, onClose, item, onAnySave }) {
 
   return (
     <ModalLarge visible={visible} onRequestClose={onClose} title={title}>
-      <ModalLarge.Body style={{ paddingHorizontal: 0, paddingVertical: 0, flex: 1 }}>
+      <ModalLarge.Body style={{ paddingHorizontal: 0, paddingVertical: 0 }}>
         <View style={styles.tabsRow}>
           <View style={styles.tabsBar}>
             {[TABS.INFO, TABS.HIST].map((t) => (
@@ -195,7 +187,7 @@ export default function WarehouseModal({ visible, onClose, item, onAnySave }) {
         </ScrollView>
       </ModalLarge.Body>
 
-      <ModalLarge.Footer style={{ paddingHorizontal: 16, paddingVertical: 16, flexShrink: 0 }}>
+      <ModalLarge.Footer style={{ paddingHorizontal: 16, paddingVertical: 16 }}>
         {tab === TABS.INFO ? (
           <View>
             <View style={{ flexDirection: "row", gap: 10 }}>
@@ -254,159 +246,94 @@ export default function WarehouseModal({ visible, onClose, item, onAnySave }) {
 
             {qtyNum !== 0 ? (
               <Pressable
-                onPress={() => startConfirm(qtyNum > 0 ? 1 : -1)}
-                style={{
-                  marginTop: 10,
-                  height: 46,
-                  borderRadius: 12,
-                  backgroundColor: colors.primary,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
+                onPress={startConfirm}
+                style={({ pressed }) => [
+                  {
+                    marginTop: 12,
+                    height: 46,
+                    borderRadius: 12,
+                    backgroundColor: colors.primary,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: "100%",
+                  },
+                  confirmButtonCursorStyle,
+                  pressed && { opacity: 0.85 },
+                ]}
               >
                 <Ionicons name="checkmark" size={18} color="#fff" style={{ marginRight: 8 }} />
                 <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>Confirm</Text>
               </Pressable>
-            ) : null}
+            ) : (
+              <View style={{ height: 46, marginTop: 12 }} />
+            )}
           </View>
         ) : (
           <View style={[styles.buttonContainer, { minHeight: 40 }]} />
         )}
       </ModalLarge.Footer>
 
-      <Modal
+      <ModalSmall
         visible={notesVisible}
-        transparent
-        animationType="fade"
         onRequestClose={() => setNotesVisible(false)}
-      >
-        <View
-          style={[
-            styles.modalOverlay,
-            { justifyContent: "center", alignItems: "center" },
-          ]}
-        >
-          <View
-            style={[
-              {
-                width: 420,
-                maxWidth: "92%",
-                borderRadius: 16,
-                backgroundColor: "#fff",
-                padding: 16,
-              },
-              modalCardShadowStyle,
-            ]}
-          >
-            <Text style={{ fontWeight: "700", fontSize: 16, marginBottom: 12 }}>
-              Notes (optional)
-            </Text>
-            <TextInput
-              value={notes}
-              onChangeText={setNotes}
-              placeholder="Add context for this movement"
-              placeholderTextColor="#999"
-              multiline
-              style={{
-                minHeight: 80,
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: "#ddd",
-                padding: 12,
-                textAlignVertical: "top",
-              }}
-            />
-
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "flex-end",
-                alignItems: "center",
-                marginTop: 12,
-                gap: 10,
-              }}
-            >
-              <Pressable
-                onPress={() => setNotesVisible(false)}
-                style={{
-                  paddingHorizontal: 16,
-                  paddingVertical: 10,
-                  borderRadius: 10,
-                }}
-              >
-                <Text style={{ color: "#6b7280", fontWeight: "600" }}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={saveWithNotes}
-                style={{
-                  backgroundColor: colors.primary,
-                  borderRadius: 10,
-                  paddingHorizontal: 16,
-                  paddingVertical: 10,
-                }}
-              >
-                <Text style={{ color: "white", fontWeight: "600" }}>Save</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
-        visible={deleteVisible}
-        transparent
         animationType="fade"
-        onRequestClose={() => setDeleteVisible(false)}
       >
-        <View
-          style={[
-            styles.modalOverlay,
-            { justifyContent: "center", alignItems: "center" },
-          ]}
-        >
-          <View
+        <ModalSmall.Title>Notes (optional)</ModalSmall.Title>
+
+        <ModalSmall.Body>
+          <TextInput
+            value={notes}
+            onChangeText={setNotes}
+            placeholder="Add context for this movement"
+            placeholderTextColor="#b5b5b5"
+            multiline
+            style={[modalSmallStyles.input, { minHeight: 80, textAlignVertical: "top" }]}
+          />
+        </ModalSmall.Body>
+
+        <ModalSmall.Footer>
+          <Pressable onPress={() => setNotesVisible(false)} style={modalSmallStyles.cancelButton}>
+            <Text style={modalSmallStyles.cancelText}>Cancel</Text>
+          </Pressable>
+          <Pressable onPress={saveWithNotes} style={modalSmallStyles.primaryButton}>
+            <Text style={modalSmallStyles.primaryButtonText}>Confirm</Text>
+          </Pressable>
+        </ModalSmall.Footer>
+      </ModalSmall>
+
+      <ModalSmall
+        visible={deleteVisible}
+        onRequestClose={() => !deleting && setDeleteVisible(false)}
+        animationType="fade"
+      >
+        <ModalSmall.Title>Delete Component?</ModalSmall.Title>
+        <ModalSmall.Subtitle>
+          This will remove the component and its movement history.
+        </ModalSmall.Subtitle>
+        <ModalSmall.Footer>
+          <Pressable
+            onPress={() => setDeleteVisible(false)}
+            disabled={deleting}
+            style={modalSmallStyles.cancelButton}
+          >
+            <Text style={modalSmallStyles.cancelText}>Cancel</Text>
+          </Pressable>
+          <Pressable
+            onPress={performDelete}
+            disabled={deleting}
             style={[
-              {
-                width: 360,
-                maxWidth: "92%",
-                borderRadius: 16,
-                backgroundColor: "#fff",
-                padding: 20,
-              },
-              modalCardShadowStyle,
+              modalSmallStyles.primaryButton,
+              { backgroundColor: "#dc2626" },
+              deleting && modalSmallStyles.primaryButtonDisabled,
             ]}
           >
-            <Text style={{ fontWeight: "700", fontSize: 18, marginBottom: 10 }}>
-              Delete Component?
+            <Text style={modalSmallStyles.primaryButtonText}>
+              {deleting ? "Deleting…" : "Delete"}
             </Text>
-            <Text style={{ color: "#4b5563", marginBottom: 16 }}>
-              This will remove the component and its movement history.
-            </Text>
-
-            <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 10 }}>
-              <Pressable onPress={() => setDeleteVisible(false)}>
-                <Text style={{ color: "#6b7280", fontWeight: "600" }}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={performDelete}
-                disabled={deleting}
-                style={{
-                  backgroundColor: "#dc2626",
-                  borderRadius: 10,
-                  paddingHorizontal: 16,
-                  paddingVertical: 10,
-                  opacity: deleting ? 0.6 : 1,
-                }}
-              >
-                <Text style={{ color: "white", fontWeight: "600" }}>
-                  {deleting ? "Deleting…" : "Delete"}
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+          </Pressable>
+        </ModalSmall.Footer>
+      </ModalSmall>
     </ModalLarge>
   );
 }

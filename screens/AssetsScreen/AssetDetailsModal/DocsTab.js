@@ -6,6 +6,7 @@ import * as FileSystem from "expo-file-system";
 import { decode } from "base64-arraybuffer";
 import { Ionicons } from "@expo/vector-icons";
 import { useDatabase } from "../../../contexts/DatabaseContext";
+import ModalSmall from "../../../components/ModalSmall";
 
 function splitStoragePath(storage_path) {
   if (!storage_path) return { bucket: "", path: "" };
@@ -24,6 +25,9 @@ export default function DocsTab({ asset, styles, colors }) {
   const [loadingLinked, setLoadingLinked] = useState(false);
 
   const webFileInputRef = useRef(null);
+  const [pendingDeleteDoc, setPendingDeleteDoc] = useState(null);
+  const [deletingDoc, setDeletingDoc] = useState(false);
+  const modalStyles = ModalSmall.styles;
 
   const loadDocuments = useCallback(
     async (assetId) => {
@@ -224,44 +228,53 @@ export default function DocsTab({ asset, styles, colors }) {
     }
   }, []);
 
-  const deleteDocument = async (doc) => {
+  const requestDeleteDocument = (doc) => {
     if (!canDelete) {
       Alert.alert("Permission", "Only admins can delete documents.");
       return;
     }
-    const doDelete = async () => {
-      try {
-        const { error: delObjErr } = await supabase.storage
-          .from("asset-docs")
-          .remove([doc.path]);
-        if (delObjErr) {
-          const msg = delObjErr.message || "Storage delete failed";
-          const isNotFound = /not\s*found|No such file/i.test(msg);
-          if (!isNotFound) throw delObjErr;
-        }
+    setPendingDeleteDoc(doc);
+  };
 
-        const { error: delRowErr } = await supabase
-          .from("asset_documents")
-          .delete()
-          .eq("id", doc.id)
-          .eq("database_id", activeDatabaseId);
-        if (delRowErr) throw delRowErr;
+  const performDeleteDocument = async () => {
+    if (!pendingDeleteDoc) return;
+    if (!canDelete) {
+      Alert.alert("Permission", "Only admins can delete documents.");
+      setPendingDeleteDoc(null);
+      return;
+    }
+    if (!ensureDatabaseSelected()) {
+      setPendingDeleteDoc(null);
+      return;
+    }
 
-        setDocs((prev) => prev.filter((d) => d.id !== doc.id));
-        Alert.alert("Deleted", "Document removed.");
-      } catch (e) {
-        console.error("deleteDocument error:", e);
-        Alert.alert("Error", e.message || "Failed to delete document.");
+    const doc = pendingDeleteDoc;
+    setDeletingDoc(true);
+    try {
+      const { error: delObjErr } = await supabase.storage
+        .from("asset-docs")
+        .remove([doc.path]);
+      if (delObjErr) {
+        const msg = delObjErr.message || "Storage delete failed";
+        const isNotFound = /not\s*found|No such file/i.test(msg);
+        if (!isNotFound) throw delObjErr;
       }
-    };
 
-    if (Platform.OS === "web") {
-      if (window.confirm(`Delete "${doc.name}"?`)) await doDelete();
-    } else {
-      Alert.alert("Delete Document", `Delete "${doc.name}"?`, [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: doDelete },
-      ]);
+      const { error: delRowErr } = await supabase
+        .from("asset_documents")
+        .delete()
+        .eq("id", doc.id)
+        .eq("database_id", activeDatabaseId);
+      if (delRowErr) throw delRowErr;
+
+      setDocs((prev) => prev.filter((d) => d.id !== doc.id));
+      Alert.alert("Deleted", "Document removed.");
+      setPendingDeleteDoc(null);
+    } catch (e) {
+      console.error("deleteDocument error:", e);
+      Alert.alert("Error", e.message || "Failed to delete document.");
+    } finally {
+      setDeletingDoc(false);
     }
   };
 
@@ -306,7 +319,7 @@ export default function DocsTab({ asset, styles, colors }) {
               <Text style={styles.docMeta}>{doc.mime_type || ""}</Text>
             </View>
             {canDelete ? (
-              <Pressable onPress={() => deleteDocument(doc)} style={styles.docDeleteButton}>
+              <Pressable onPress={() => requestDeleteDocument(doc)} style={styles.docDeleteButton}>
                 <Ionicons name="trash-outline" size={18} color="#ff5555" />
               </Pressable>
             ) : null}
@@ -339,6 +352,39 @@ export default function DocsTab({ asset, styles, colors }) {
           </Pressable>
         ))
       )}
+
+      <ModalSmall
+        visible={!!pendingDeleteDoc}
+        onRequestClose={() => !deletingDoc && setPendingDeleteDoc(null)}
+        animationType="fade"
+      >
+        <ModalSmall.Title>Delete Document</ModalSmall.Title>
+        <ModalSmall.Subtitle>
+          {pendingDeleteDoc ? `Delete "${pendingDeleteDoc.name}"?` : "Delete this document?"}
+        </ModalSmall.Subtitle>
+        <ModalSmall.Footer>
+          <Pressable
+            onPress={() => setPendingDeleteDoc(null)}
+            disabled={deletingDoc}
+            style={modalStyles.cancelButton}
+          >
+            <Text style={modalStyles.cancelText}>Cancel</Text>
+          </Pressable>
+          <Pressable
+            onPress={performDeleteDocument}
+            disabled={deletingDoc}
+            style={[
+              modalStyles.primaryButton,
+              { backgroundColor: "#dc2626" },
+              deletingDoc && modalStyles.primaryButtonDisabled,
+            ]}
+          >
+            <Text style={modalStyles.primaryButtonText}>
+              {deletingDoc ? "Deleting…" : "Delete"}
+            </Text>
+          </Pressable>
+        </ModalSmall.Footer>
+      </ModalSmall>
     </View>
   );
 }

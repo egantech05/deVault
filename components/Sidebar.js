@@ -5,6 +5,7 @@ import { useNavigation } from "@react-navigation/native";
 import { colors } from "./Styles";
 import { Ionicons } from '@expo/vector-icons';
 import { useDatabase } from '../contexts/DatabaseContext';
+import ModalSmall from './ModalSmall';
 
 const SIDEBAR_WIDTH = 233;
 
@@ -22,6 +23,9 @@ export default function Sidebar({ isLarge, onClose }) {
   const [expanded, setExpanded] = useState(false);
   const hasDatabases = databases.length > 0;
   const showNav = !!activeDatabase;
+  const [dbToDelete, setDbToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const modalStyles = ModalSmall.styles;
 
   const pickDatabase = async (id) => {
     await selectDatabase(id);
@@ -30,33 +34,26 @@ export default function Sidebar({ isLarge, onClose }) {
   };
 
   const confirmDeleteDatabase = (db) => {
-    const go = async () => {
-      try {
-        await deleteDatabase(db.id);
-        setExpanded(false);
-        try { refresh(); } catch {}
-      } catch (e) {
-        const msg = e?.message || "Failed to delete database.";
-        if (Platform.OS === "web") {
-          alert(msg);
-        } else {
-          Alert.alert("Delete Database", msg);
-        }
-      }
-    };
+    setDbToDelete(db);
+  };
 
-    const prompt = `Delete database "${db?.name || ""}"?\nThis action cannot be undone.`;
-    if (Platform.OS === "web") {
-      if (window.confirm(prompt)) go();
-    } else {
-      Alert.alert(
-        "Delete Database",
-        prompt,
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Delete", style: "destructive", onPress: go },
-        ]
-      );
+  const performDeleteDatabase = async () => {
+    if (!dbToDelete) return;
+    try {
+      setDeleting(true);
+      await deleteDatabase(dbToDelete.id);
+      setDbToDelete(null);
+      setExpanded(false);
+      try { refresh(); } catch {}
+    } catch (e) {
+      const msg = e?.message || "Failed to delete database.";
+      if (Platform.OS === "web") {
+        alert(msg);
+      } else {
+        Alert.alert("Delete Database", msg);
+      }
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -163,11 +160,46 @@ export default function Sidebar({ isLarge, onClose }) {
     </View>
   );
 
+  const modal = (
+    <ModalSmall
+      visible={!!dbToDelete}
+      onRequestClose={() => !deleting && setDbToDelete(null)}
+      animationType="fade"
+    >
+      <ModalSmall.Title>Delete Database</ModalSmall.Title>
+      <ModalSmall.Subtitle>
+        {`Delete database "${dbToDelete?.name || ""}"? This action cannot be undone.`}
+      </ModalSmall.Subtitle>
+      <ModalSmall.Footer>
+        <Pressable onPress={() => setDbToDelete(null)} disabled={deleting} style={modalStyles.cancelButton}>
+          <Text style={modalStyles.cancelText}>Cancel</Text>
+        </Pressable>
+        <Pressable
+          onPress={performDeleteDatabase}
+          disabled={deleting}
+          style={[modalStyles.primaryButton, deleting && modalStyles.primaryButtonDisabled, { backgroundColor: "#dc2626" }]}
+        >
+          <Text style={modalStyles.primaryButtonText}>{deleting ? "Deleting…" : "Delete"}</Text>
+        </Pressable>
+      </ModalSmall.Footer>
+    </ModalSmall>
+  );
+
   if (isLarge) {
-    return <View style={styles.sidebarFixed}>{body}</View>;
+    return (
+      <>
+        <View style={styles.sidebarFixed}>{body}</View>
+        {modal}
+      </>
+    );
   }
 
-  return <View style={styles.sidebarOverlay}>{body}</View>;
+  return (
+    <>
+      <View style={styles.sidebarOverlay}>{body}</View>
+      {modal}
+    </>
+  );
 }
 
 const styles = StyleSheet.create({

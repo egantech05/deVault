@@ -14,6 +14,7 @@ import { colors, commonStyles } from "../components/Styles";
 import { Ionicons } from "@expo/vector-icons";
 import AutoShrinkText from "../components/AutoShrinkText";
 import { getCardSize } from "../utils/cardLayout";
+import ModalSmall from "../components/ModalSmall";
 import {
   listTemplates,
   createTemplate,
@@ -53,6 +54,9 @@ export default function LogTemplatesScreen() {
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [detailName, setDetailName] = useState("");
   const [detailProps, setDetailProps] = useState([]);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [deletingTemplate, setDeletingTemplate] = useState(false);
+  const modalStyles = ModalSmall.styles;
 
   // Duplicate name guard
   const normalizedNewName = templateName.trim().toLowerCase();
@@ -254,25 +258,44 @@ export default function LogTemplatesScreen() {
     }
   };
 
-  const deleteTemplate = async () => {
-    if (!selectedTemplate) return;
+  const requestDeleteTemplate = () => {
     if (!canDelete) {
       Alert.alert("Permission", "Only admins can delete templates.");
       return;
     }
-    if (!activeDatabaseId) {
-      openCreateModal();
+    if (!selectedTemplate) return;
+    setDeleteModalVisible(true);
+  };
+
+  const performDeleteTemplate = async () => {
+    if (!selectedTemplate) {
+      setDeleteModalVisible(false);
       return;
     }
+    if (!canDelete) {
+      Alert.alert("Permission", "Only admins can delete templates.");
+      setDeleteModalVisible(false);
+      return;
+    }
+    if (!activeDatabaseId) {
+      openCreateModal();
+      setDeleteModalVisible(false);
+      return;
+    }
+
+    setDeletingTemplate(true);
     try {
       await deleteTemplateApi(KIND, selectedTemplate.id, activeDatabaseId);
       Alert.alert("Deleted", "Template removed.");
       setDetailsVisible(false);
       setSelectedTemplate(null);
+      setDeleteModalVisible(false);
       await loadTemplates();
     } catch (e) {
       console.error("delete template error:", e);
       Alert.alert("Error", "Failed to delete template.");
+    } finally {
+      setDeletingTemplate(false);
     }
   };
 
@@ -387,9 +410,43 @@ export default function LogTemplatesScreen() {
         onUpdateDetailProperty={updateDetailProperty}
         onRemoveDetailProperty={removeDetailProperty}
         canDelete={canDelete}
-        onDelete={deleteTemplate}
+        onDelete={requestDeleteTemplate}
+        deleteDisabled={deletingTemplate}
         onSave={saveTemplateEdits}
       />
+
+      <ModalSmall
+        visible={deleteModalVisible}
+        onRequestClose={() => !deletingTemplate && setDeleteModalVisible(false)}
+        animationType="fade"
+      >
+        <ModalSmall.Title>Delete Template</ModalSmall.Title>
+        <ModalSmall.Subtitle>
+          {selectedTemplate ? `Delete "${selectedTemplate.name}"?` : "Delete this template?"}
+        </ModalSmall.Subtitle>
+        <ModalSmall.Footer>
+          <Pressable
+            onPress={() => setDeleteModalVisible(false)}
+            disabled={deletingTemplate}
+            style={modalStyles.cancelButton}
+          >
+            <Text style={modalStyles.cancelText}>Cancel</Text>
+          </Pressable>
+          <Pressable
+            onPress={performDeleteTemplate}
+            disabled={deletingTemplate}
+            style={[
+              modalStyles.primaryButton,
+              { backgroundColor: "#dc2626" },
+              deletingTemplate && modalStyles.primaryButtonDisabled,
+            ]}
+          >
+            <Text style={modalStyles.primaryButtonText}>
+              {deletingTemplate ? "Deleting…" : "Delete"}
+            </Text>
+          </Pressable>
+        </ModalSmall.Footer>
+      </ModalSmall>
     </View>
   );
 }

@@ -7,11 +7,11 @@ import {
   StyleSheet,
   Alert,
   Modal,
-  ScrollView,
   ActivityIndicator,
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import ModalLarge from '../../components/ModalLarge';
 import { supabase } from '../../lib/supabase';
 import { colors } from '../../components/Styles';
 
@@ -209,247 +209,192 @@ export default function SignUpModal({ visible, onClose, onSuccess }) {
   };
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={handleClose}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modal}>
-          {/* Header */}
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Create Account</Text>
-            <TouchableOpacity onPress={handleClose}>
-              <Ionicons name="close" size={24} color={colors.brand} />
+    <>
+      <ModalLarge
+        visible={visible}
+        onRequestClose={handleClose}
+        title="Create Account"
+      >
+        <ModalLarge.Body scroll style={styles.modalScrollView}>
+          {/* Email Input */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Email Address</Text>
+            <TextInput
+              style={[styles.input, errors.email && styles.inputError]}
+              placeholder="Enter your email"
+              placeholderTextColor="#999"
+              value={formData.email}
+              onChangeText={(value) => updateFormData('email', value)}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!loading}
+            />
+            {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+          </View>
+
+          {/* Password Input */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Password</Text>
+            <View style={[styles.passwordContainer, errors.password && styles.inputError]}>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="Enter your password"
+                placeholderTextColor="#999"
+                value={formData.password}
+                onChangeText={(value) => updateFormData('password', value)}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!loading}
+              />
+              <TouchableOpacity
+                style={styles.eyeButton}
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                <Ionicons 
+                  name={showPassword ? "eye-off" : "eye"} 
+                  size={20} 
+                  color="#999" 
+                />
+              </TouchableOpacity>
+            </View>
+            {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+            
+            {/* Password Requirements */}
+            <View style={styles.requirementsContainer}>
+              <Text style={styles.requirementsTitle}>Password Requirements:</Text>
+              <Text style={[styles.requirement, formData.password.length >= 8 && styles.requirementMet]}>
+                • At least 8 characters
+              </Text>
+              <Text style={[styles.requirement, /[A-Z]/.test(formData.password) && styles.requirementMet]}>
+                • One capital letter
+              </Text>
+              <Text style={[styles.requirement, /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(formData.password) && styles.requirementMet]}>
+                • One symbol
+              </Text>
+            </View>
+          </View>
+
+          {/* Confirm Password Input */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Confirm Password</Text>
+            <View style={[styles.passwordContainer, errors.confirmPassword && styles.inputError]}>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="Confirm your password"
+                placeholderTextColor="#999"
+                value={formData.confirmPassword}
+                onChangeText={(value) => updateFormData('confirmPassword', value)}
+                secureTextEntry={!showConfirmPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!loading}
+              />
+              <TouchableOpacity
+                style={styles.eyeButton}
+                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+              >
+                <Ionicons 
+                  name={showConfirmPassword ? "eye-off" : "eye"} 
+                  size={20} 
+                  color="#999" 
+                />
+              </TouchableOpacity>
+            </View>
+            {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
+          </View>
+
+          {/* Name Inputs */}
+          <View style={styles.nameRow}>
+            <View style={[styles.inputGroup, styles.nameInput]}>
+              <Text style={styles.label}>First Name</Text>
+              <TextInput
+                style={[styles.input, errors.firstName && styles.inputError]}
+                placeholder="First name"
+                placeholderTextColor="#999"
+                value={formData.firstName}
+                onChangeText={(value) => updateFormData('firstName', value)}
+                autoCapitalize="words"
+                autoCorrect={false}
+                editable={!loading}
+              />
+              {errors.firstName && <Text style={styles.errorText}>{errors.firstName}</Text>}
+            </View>
+
+            <View style={[styles.inputGroup, styles.nameInput]}>
+              <Text style={styles.label}>Last Name</Text>
+              <TextInput
+                style={[styles.input, errors.lastName && styles.inputError]}
+                placeholder="Last name"
+                placeholderTextColor="#999"
+                value={formData.lastName}
+                onChangeText={(value) => updateFormData('lastName', value)}
+                autoCapitalize="words"
+                autoCorrect={false}
+                editable={!loading}
+              />
+              {errors.lastName && <Text style={styles.errorText}>{errors.lastName}</Text>}
+            </View>
+          </View>
+        </ModalLarge.Body>
+
+        <ModalLarge.Footer style={styles.modalFooter}>
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity style={styles.cancelButton} onPress={handleClose}>
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.signUpButton, loading && styles.signUpButtonDisabled]}
+              onPress={handleSignUp}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text style={styles.signUpButtonText}>Create Account</Text>
+              )}
             </TouchableOpacity>
           </View>
+        </ModalLarge.Footer>
+      </ModalLarge>
 
-          {/* Content */}
-          <ScrollView
-            style={styles.modalScrollView}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            <View style={styles.modalContent}>
-              {/* Email Input */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Email Address</Text>
-                <TextInput
-                  style={[styles.input, errors.email && styles.inputError]}
-                  placeholder="Enter your email"
-                  placeholderTextColor="#999"
-                  value={formData.email}
-                  onChangeText={(value) => updateFormData('email', value)}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  editable={!loading}
-                />
-                {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
-              </View>
-
-              {/* Password Input */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Password</Text>
-                <View style={[styles.passwordContainer, errors.password && styles.inputError]}>
-                  <TextInput
-                    style={styles.passwordInput}
-                    placeholder="Enter your password"
-                    placeholderTextColor="#999"
-                    value={formData.password}
-                    onChangeText={(value) => updateFormData('password', value)}
-                    secureTextEntry={!showPassword}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    editable={!loading}
-                  />
-                  <TouchableOpacity
-                    style={styles.eyeButton}
-                    onPress={() => setShowPassword(!showPassword)}
-                  >
-                    <Ionicons 
-                      name={showPassword ? "eye-off" : "eye"} 
-                      size={20} 
-                      color="#999" 
-                    />
-                  </TouchableOpacity>
-                </View>
-                {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
-                
-                {/* Password Requirements */}
-                <View style={styles.requirementsContainer}>
-                  <Text style={styles.requirementsTitle}>Password Requirements:</Text>
-                  <Text style={[styles.requirement, formData.password.length >= 8 && styles.requirementMet]}>
-                    • At least 8 characters
-                  </Text>
-                  <Text style={[styles.requirement, /[A-Z]/.test(formData.password) && styles.requirementMet]}>
-                    • One capital letter
-                  </Text>
-                  <Text style={[styles.requirement, /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(formData.password) && styles.requirementMet]}>
-                    • One symbol
-                  </Text>
-                </View>
-              </View>
-
-              {/* Confirm Password Input */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Confirm Password</Text>
-                <View style={[styles.passwordContainer, errors.confirmPassword && styles.inputError]}>
-                  <TextInput
-                    style={styles.passwordInput}
-                    placeholder="Confirm your password"
-                    placeholderTextColor="#999"
-                    value={formData.confirmPassword}
-                    onChangeText={(value) => updateFormData('confirmPassword', value)}
-                    secureTextEntry={!showConfirmPassword}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    editable={!loading}
-                  />
-                  <TouchableOpacity
-                    style={styles.eyeButton}
-                    onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                  >
-                    <Ionicons 
-                      name={showConfirmPassword ? "eye-off" : "eye"} 
-                      size={20} 
-                      color="#999" 
-                    />
-                  </TouchableOpacity>
-                </View>
-                {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
-              </View>
-
-              {/* Name Inputs */}
-              <View style={styles.nameRow}>
-                <View style={[styles.inputGroup, styles.nameInput]}>
-                  <Text style={styles.label}>First Name</Text>
-                  <TextInput
-                    style={[styles.input, errors.firstName && styles.inputError]}
-                    placeholder="First name"
-                    placeholderTextColor="#999"
-                    value={formData.firstName}
-                    onChangeText={(value) => updateFormData('firstName', value)}
-                    autoCapitalize="words"
-                    autoCorrect={false}
-                    editable={!loading}
-                  />
-                  {errors.firstName && <Text style={styles.errorText}>{errors.firstName}</Text>}
-                </View>
-
-                <View style={[styles.inputGroup, styles.nameInput]}>
-                  <Text style={styles.label}>Last Name</Text>
-                  <TextInput
-                    style={[styles.input, errors.lastName && styles.inputError]}
-                    placeholder="Last name"
-                    placeholderTextColor="#999"
-                    value={formData.lastName}
-                    onChangeText={(value) => updateFormData('lastName', value)}
-                    autoCapitalize="words"
-                    autoCorrect={false}
-                    editable={!loading}
-                  />
-                  {errors.lastName && <Text style={styles.errorText}>{errors.lastName}</Text>}
-                </View>
-              </View>
+      {/* Success Modal */}
+      <Modal
+        visible={showSuccessModal}
+        transparent
+        animationType="fade"
+        onRequestClose={handleSuccessClose}
+      >
+        <View style={styles.successModalOverlay}>
+          <View style={styles.successModal}>
+            <View style={styles.successIcon}>
+              <Ionicons name="checkmark-circle" size={64} color="#28a745" />
             </View>
-          </ScrollView>
-
-          {/* Footer */}
-          <View style={styles.modalFooter}>
-            <View style={styles.buttonContainer}>
-              <TouchableOpacity style={styles.cancelButton} onPress={handleClose}>
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.signUpButton, loading && styles.signUpButtonDisabled]}
-                onPress={handleSignUp}
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color="white" />
-                ) : (
-                  <Text style={styles.signUpButtonText}>Create Account</Text>
-                )}
-              </TouchableOpacity>
-            </View>
+            <Text style={styles.successTitle}>Account Created Successfully! 🎉</Text>
+            <Text style={styles.successMessage}>
+              Welcome to Ssetra, {formData.firstName}!
+            </Text>
+            <Text style={styles.successSubMessage}>
+              Please check your email ({formData.email}) for a confirmation link to activate your account.
+            </Text>
+            <TouchableOpacity 
+              style={styles.successButton} 
+              onPress={handleSuccessClose}
+            >
+              <Text style={styles.successButtonText}>Got it!</Text>
+            </TouchableOpacity>
           </View>
         </View>
-      </View>
-
-
-
-        {/* Success Modal */}
-    <Modal
-      visible={showSuccessModal}
-      transparent
-      animationType="fade"
-      onRequestClose={handleSuccessClose}
-    >
-      <View style={styles.successModalOverlay}>
-        <View style={styles.successModal}>
-          <View style={styles.successIcon}>
-            <Ionicons name="checkmark-circle" size={64} color="#28a745" />
-          </View>
-          <Text style={styles.successTitle}>Account Created Successfully! 🎉</Text>
-          <Text style={styles.successMessage}>
-            Welcome to Ssetra, {formData.firstName}!
-          </Text>
-          <Text style={styles.successSubMessage}>
-            Please check your email ({formData.email}) for a confirmation link to activate your account.
-          </Text>
-          <TouchableOpacity 
-            style={styles.successButton} 
-            onPress={handleSuccessClose}
-          >
-            <Text style={styles.successButtonText}>Got it!</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-    </Modal>
+      </Modal>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modal: {
-    width: '90%',
-    backgroundColor: 'white',
-    borderRadius: 16,
-    height: '85%',
-    flexDirection: 'column',
-    overflow: 'hidden',
-  },
-  modalHeader: {
-    backgroundColor: colors.primary,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-    flexShrink: 0,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: 'white',
-  },
   modalScrollView: {
     flex: 1,
-  },
-  modalContent: {
-    padding: 20,
   },
   inputGroup: {
     marginBottom: 20,

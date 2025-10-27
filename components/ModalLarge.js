@@ -143,6 +143,7 @@ const styles = StyleSheet.create({
   },
   body: {
     flexGrow: 1,
+    flexShrink: 1,
     backgroundColor: "white",
   },
   bodyInner: {
@@ -155,5 +156,6 @@ const styles = StyleSheet.create({
     backgroundColor: "white",
     borderTopWidth: 1,
     borderTopColor: "#e0e0e0",
+    flexShrink: 0,
   },
 });

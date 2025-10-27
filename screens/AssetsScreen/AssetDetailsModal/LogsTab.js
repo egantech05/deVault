@@ -6,6 +6,7 @@ import { fetchLogs, updateLog, deleteLogById } from "../../../services/logsApi";
 import { useDatabase } from "../../../contexts/DatabaseContext";
 import AddLogModal from "./AddLogModal";
 import ViewLogModal from "./ViewLogModal";
+import ModalSmall from "../../../components/ModalSmall";
 
 function getOrderedFieldsForModal(log) {
   if (!log) return [];
@@ -44,6 +45,9 @@ export default function LogsTab({ asset }) {
   const [logEditFields, setLogEditFields] = useState([]);
   const [savingLog, setSavingLog] = useState(false);
   const [addLogModalVisible, setAddLogModalVisible] = useState(false);
+  const [pendingDeleteLog, setPendingDeleteLog] = useState(null);
+  const [deletingLog, setDeletingLog] = useState(false);
+  const modalStyles = ModalSmall.styles;
 
   const closeLogDetailModal = useCallback(() => {
     setLogDetailVisible(false);
@@ -110,12 +114,28 @@ export default function LogsTab({ asset }) {
     setLogs((prev) => [newLog, ...prev]);
   }, []);
 
-  const handleDeleteLog = async (logId) => {
+  const requestDeleteLog = (log) => {
     if (!canDelete) {
       Alert.alert("Permission", "Only admins can delete logs.");
       return;
     }
-    if (!ensureDatabaseSelected()) return;
+    setPendingDeleteLog(log);
+  };
+
+  const performDeleteLog = async () => {
+    if (!pendingDeleteLog) return;
+    if (!canDelete) {
+      Alert.alert("Permission", "Only admins can delete logs.");
+      setPendingDeleteLog(null);
+      return;
+    }
+    if (!ensureDatabaseSelected()) {
+      setPendingDeleteLog(null);
+      return;
+    }
+
+    const logId = pendingDeleteLog.id;
+    setDeletingLog(true);
     try {
       const { error } = await deleteLogById(activeDatabaseId, logId);
       if (error) throw error;
@@ -124,9 +144,12 @@ export default function LogsTab({ asset }) {
         closeLogDetailModal();
       }
       Alert.alert("Deleted", "Log removed.");
+      setPendingDeleteLog(null);
     } catch (e) {
       console.error("delete log error:", e);
       Alert.alert("Error", e.message || "Failed to delete log.");
+    } finally {
+      setDeletingLog(false);
     }
   };
 
@@ -265,12 +288,7 @@ export default function LogsTab({ asset }) {
                   <Pressable
                     style={styles.deleteLogButton}
                     hitSlop={8}
-                    onPress={() =>
-                      Alert.alert("Delete Log", "Remove this log entry?", [
-                        { text: "Cancel", style: "cancel" },
-                        { text: "Delete", style: "destructive", onPress: () => handleDeleteLog(item.id) },
-                      ])
-                    }
+                    onPress={() => requestDeleteLog(item)}
                   >
                     <Ionicons name="trash-outline" size={18} color="#ff5555" />
                   </Pressable>
@@ -313,6 +331,37 @@ export default function LogsTab({ asset }) {
         assetId={asset?.id}
         onLogCreated={handleLogCreated}
       />
+
+      <ModalSmall
+        visible={!!pendingDeleteLog}
+        onRequestClose={() => !deletingLog && setPendingDeleteLog(null)}
+        animationType="fade"
+      >
+        <ModalSmall.Title>Delete Log</ModalSmall.Title>
+        <ModalSmall.Subtitle>Remove this log entry?</ModalSmall.Subtitle>
+        <ModalSmall.Footer>
+          <Pressable
+            onPress={() => setPendingDeleteLog(null)}
+            disabled={deletingLog}
+            style={modalStyles.cancelButton}
+          >
+            <Text style={modalStyles.cancelText}>Cancel</Text>
+          </Pressable>
+          <Pressable
+            onPress={performDeleteLog}
+            disabled={deletingLog}
+            style={[
+              modalStyles.primaryButton,
+              { backgroundColor: "#dc2626" },
+              deletingLog && modalStyles.primaryButtonDisabled,
+            ]}
+          >
+            <Text style={modalStyles.primaryButtonText}>
+              {deletingLog ? "Deleting…" : "Delete"}
+            </Text>
+          </Pressable>
+        </ModalSmall.Footer>
+      </ModalSmall>
     </View>
   );
 }

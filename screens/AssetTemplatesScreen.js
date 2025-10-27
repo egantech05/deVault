@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AutoShrinkText from "../components/AutoShrinkText";
 import NewTemplateModal from "./AssetTemplatesScreen/NewTemplateModal";
 import ViewTemplateModal from "./AssetTemplatesScreen/ViewTemplateModal";
+import ModalSmall from "../components/ModalSmall";
 import { getCardSize } from '../utils/cardLayout';
 import {
   listTemplates, createTemplate, getTemplateFields, updateTemplateName,
@@ -42,6 +43,9 @@ export default function AssetTemplatesScreen() {
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [detailName, setDetailName] = useState('');
   const [detailProps, setDetailProps] = useState([]);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [deletingTemplate, setDeletingTemplate] = useState(false);
+  const modalStyles = ModalSmall.styles;
 
   const normalizedNewName = templateName.trim().toLowerCase();
   const isDuplicateName = !!normalizedNewName &&
@@ -194,27 +198,44 @@ export default function AssetTemplatesScreen() {
     }
   };
 
-  const deleteTemplate = async () => {
+  const requestDeleteTemplate = () => {
     if (!canDelete) {
       Alert.alert('Permission', 'Only admins can delete templates.');
       return;
     }
     if (!selectedTemplate) return;
-    if (!activeDatabaseId) {
-      openCreateModal();
+    setDeleteModalVisible(true);
+  };
+
+  const performDeleteTemplate = async () => {
+    if (!selectedTemplate) {
+      setDeleteModalVisible(false);
       return;
     }
+    if (!canDelete) {
+      Alert.alert('Permission', 'Only admins can delete templates.');
+      setDeleteModalVisible(false);
+      return;
+    }
+    if (!activeDatabaseId) {
+      openCreateModal();
+      setDeleteModalVisible(false);
+      return;
+    }
+    setDeletingTemplate(true);
     try {
       await deleteTemplateApi(KIND, selectedTemplate.id, activeDatabaseId);
+      Alert.alert('Deleted', 'Template removed.');
+      setDetailsVisible(false);
+      setSelectedTemplate(null);
+      setDeleteModalVisible(false);
+      await loadTemplates();
     } catch (e) {
       console.error('delete template error:', e);
       Alert.alert('Error', 'Failed to delete template.');
-      return;
+    } finally {
+      setDeletingTemplate(false);
     }
-    Alert.alert('Deleted', 'Template removed.');
-    setDetailsVisible(false);
-    setSelectedTemplate(null);
-    await loadTemplates();
   };
 
   if (!activeDatabaseId) {
@@ -309,10 +330,44 @@ export default function AssetTemplatesScreen() {
         onRemoveDetailProperty={removeDetailProperty}
         onUpdateDetailProperty={updateDetailProperty}
         canDelete={canDelete}
-        onDelete={deleteTemplate}
+        onDelete={requestDeleteTemplate}
+        deleteDisabled={deletingTemplate}
         onSave={saveTemplateEdits}
         onClose={() => setDetailsVisible(false)}
       />
+
+      <ModalSmall
+        visible={deleteModalVisible}
+        onRequestClose={() => !deletingTemplate && setDeleteModalVisible(false)}
+        animationType="fade"
+      >
+        <ModalSmall.Title>Delete Template</ModalSmall.Title>
+        <ModalSmall.Subtitle>
+          {selectedTemplate ? `Delete "${selectedTemplate.name}"?` : "Delete this template?"}
+        </ModalSmall.Subtitle>
+        <ModalSmall.Footer>
+          <Pressable
+            onPress={() => setDeleteModalVisible(false)}
+            disabled={deletingTemplate}
+            style={modalStyles.cancelButton}
+          >
+            <Text style={modalStyles.cancelText}>Cancel</Text>
+          </Pressable>
+          <Pressable
+            onPress={performDeleteTemplate}
+            disabled={deletingTemplate}
+            style={[
+              modalStyles.primaryButton,
+              { backgroundColor: "#dc2626" },
+              deletingTemplate && modalStyles.primaryButtonDisabled,
+            ]}
+          >
+            <Text style={modalStyles.primaryButtonText}>
+              {deletingTemplate ? "Deleting…" : "Delete"}
+            </Text>
+          </Pressable>
+        </ModalSmall.Footer>
+      </ModalSmall>
     </View>
   );
 }

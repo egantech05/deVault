@@ -17,6 +17,7 @@ import DashedRowButton from "../components/DashedRowButton";
 import { supabase } from "../lib/supabase";
 import { useDatabase } from "../contexts/DatabaseContext";
 import { useAuth } from "../contexts/AuthContext";
+import ModalSmall from "../components/ModalSmall";
 
 const rowBaseStyle = {
   flexDirection: "row",
@@ -67,6 +68,8 @@ export default function TeamScreen() {
   const [newEmail, setNewEmail] = useState("");
   const [newRole, setNewRole] = useState("user");
   const [addError, setAddError] = useState("");
+  const [memberToRemove, setMemberToRemove] = useState(null);
+  const modalStyles = ModalSmall.styles;
 
   const canManage = !!canManageTeam;
 
@@ -281,7 +284,7 @@ export default function TeamScreen() {
     }
   };
 
-  const removeMember = async (member) => {
+  const removeMember = (member) => {
     if (!canManage) {
       Alert.alert("Permission", "Only admins can manage the team.");
       return;
@@ -292,21 +295,23 @@ export default function TeamScreen() {
     }
     if (member?.isOwner) {
       setSaving(true);
-      try {
-        const { error: transferErr } = await supabase.rpc("transfer_database_owner", {
-          target_database: activeDatabaseId,
-          new_owner: user?.id,
-          keep_previous: false,
-          previous_role: "user",
-        });
-        if (transferErr) throw transferErr;
-        await loadTeam();
-      } catch (e) {
-        console.error("remove owner error:", e);
-        Alert.alert("Error", e.message || "Failed to remove owner.");
-      } finally {
-        setSaving(false);
-      }
+      (async () => {
+        try {
+          const { error: transferErr } = await supabase.rpc("transfer_database_owner", {
+            target_database: activeDatabaseId,
+            new_owner: user?.id,
+            keep_previous: false,
+            previous_role: "user",
+          });
+          if (transferErr) throw transferErr;
+          await loadTeam();
+        } catch (e) {
+          console.error("remove owner error:", e);
+          Alert.alert("Error", e.message || "Failed to remove owner.");
+        } finally {
+          setSaving(false);
+        }
+      })();
       return;
     }
 
@@ -314,30 +319,35 @@ export default function TeamScreen() {
       Alert.alert("Unavailable", "This member cannot be removed.");
       return;
     }
-    const go = async () => {
-      setSaving(true);
-      try {
-        const { error } = await supabase
-          .from("database_members")
-          .delete()
-          .eq("id", member.membershipId);
-        if (error) throw error;
-        await loadTeam();
-      } catch (e) {
-        console.error("removeMember error:", e);
-        Alert.alert("Error", e.message || "Failed to remove member.");
-      } finally {
-        setSaving(false);
-      }
-    };
 
-    if (Platform.OS === "web") {
-      if (window.confirm("Remove this member from the database?")) await go();
-    } else {
-      Alert.alert("Remove Member", "Remove this member from the database?", [
-        { text: "Cancel", style: "cancel" },
-        { text: "Remove", style: "destructive", onPress: go },
-      ]);
+    setMemberToRemove(member);
+  };
+
+  const performRemoveMember = async () => {
+    if (!memberToRemove?.membershipId) {
+      setMemberToRemove(null);
+      return;
+    }
+    if (!canManage) {
+      Alert.alert("Permission", "Only admins can manage the team.");
+      setMemberToRemove(null);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("database_members")
+        .delete()
+        .eq("id", memberToRemove.membershipId);
+      if (error) throw error;
+      await loadTeam();
+      setMemberToRemove(null);
+    } catch (e) {
+      console.error("removeMember error:", e);
+      Alert.alert("Error", e.message || "Failed to remove member.");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -458,6 +468,39 @@ export default function TeamScreen() {
           )}
         </View>
       )}
+
+      <ModalSmall
+        visible={!!memberToRemove}
+        onRequestClose={() => !saving && setMemberToRemove(null)}
+        animationType="fade"
+      >
+        <ModalSmall.Title>Remove Member</ModalSmall.Title>
+        <ModalSmall.Subtitle>
+          Remove this member from the database?
+        </ModalSmall.Subtitle>
+        <ModalSmall.Footer>
+          <Pressable
+            onPress={() => setMemberToRemove(null)}
+            disabled={saving}
+            style={modalStyles.cancelButton}
+          >
+            <Text style={modalStyles.cancelText}>Cancel</Text>
+          </Pressable>
+          <Pressable
+            onPress={performRemoveMember}
+            disabled={saving}
+            style={[
+              modalStyles.primaryButton,
+              { backgroundColor: "#dc2626" },
+              saving && modalStyles.primaryButtonDisabled,
+            ]}
+          >
+            <Text style={modalStyles.primaryButtonText}>
+              {saving ? "Removing…" : "Remove"}
+            </Text>
+          </Pressable>
+        </ModalSmall.Footer>
+      </ModalSmall>
     </View>
   );
 }
