@@ -1,12 +1,19 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
-  View, Text, StyleSheet, FlatList, useWindowDimensions,
-  TextInput, Pressable, Modal, Alert, ScrollView
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  useWindowDimensions,
+  TextInput,
+  Pressable,
+  Alert,
 } from "react-native";
 import { colors, commonStyles } from "../components/Styles";
-import { Ionicons } from '@expo/vector-icons';
-import AutoShrinkText from '../components/AutoShrinkText';
-import PropertyRow from '../components/PropertyRow';
+import { Ionicons } from "@expo/vector-icons";
+import AutoShrinkText from "../components/AutoShrinkText";
+import NewTemplateModal from "./AssetTemplatesScreen/NewTemplateModal";
+import ViewTemplateModal from "./AssetTemplatesScreen/ViewTemplateModal";
 import { getCardSize } from '../utils/cardLayout';
 import {
   listTemplates, createTemplate, getTemplateFields, updateTemplateName,
@@ -277,128 +284,35 @@ export default function AssetTemplatesScreen() {
         }
       />
 
-      <Modal visible={isModalVisible} transparent animationType="fade" onRequestClose={() => setIsModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modal}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Create Template</Text>
-              <Pressable onPress={() => setIsModalVisible(false)}>
-                <Ionicons name="close" size={24} color={colors.brand} />
-              </Pressable>
-            </View>
+      <NewTemplateModal
+        visible={isModalVisible}
+        templateName={templateName}
+        onChangeTemplateName={setTemplateName}
+        onBlurTemplateName={() => setNameTouched(true)}
+        nameTouched={nameTouched}
+        isDuplicateName={isDuplicateName}
+        properties={properties}
+        onAddProperty={addProperty}
+        onRemoveProperty={removeProperty}
+        onUpdateProperty={updateProperty}
+        canSave={canSaveNew}
+        onSubmit={handleAddTemplate}
+        onClose={() => setIsModalVisible(false)}
+      />
 
-            <ScrollView
-              style={styles.modalScrollView}
-              contentContainerStyle={styles.modalContent}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
-              <Text style={styles.label}>Template Name</Text>
-              <TextInput
-                style={styles.input}
-                value={templateName}
-                onBlur={() => setNameTouched(true)}
-                onChangeText={setTemplateName}
-                placeholder="Template name"
-                autoCapitalize="words"
-                placeholderTextColor={'#999'}
-              />
-              {nameTouched && !templateName.trim() && (
-                <Text style={styles.errorText}>Template name is required.</Text>
-              )}
-              {isDuplicateName && (
-                <Text style={styles.errorText}>Template name already exists.</Text>
-              )}
-
-              <Text style={[styles.label, { marginTop: 20 }]}>Properties</Text>
-              {properties.map((prop) => (
-                <PropertyRow
-                  key={prop.id}
-                  property={prop}
-                  onChange={(field, value) => updateProperty(prop.id, field, value)}
-                  onRemove={() => removeProperty(prop.id)}
-                  canRemove={properties.length > 1}
-                  showDefaultValue={false}
-                />
-              ))}
-
-              <Pressable style={styles.addRowButton} onPress={addProperty}>
-                <Ionicons name="add-circle-outline" size={18} color={colors.brand} />
-                <Text style={styles.addRowText}>Add property</Text>
-              </Pressable>
-            </ScrollView>
-
-            <View style={styles.modalFooter}>
-              <Pressable style={styles.cancelButton} onPress={() => setIsModalVisible(false)}>
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.primaryButton, !canSaveNew && { opacity: 0.6 }]}
-                disabled={!canSaveNew}
-                onPress={handleAddTemplate}
-              >
-                <Text style={styles.primaryButtonText}>Create</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={detailsVisible} transparent animationType="fade" onRequestClose={() => setDetailsVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modal}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edit Template</Text>
-              <Pressable onPress={() => setDetailsVisible(false)}>
-                <Ionicons name="close" size={24} color={colors.brand} />
-              </Pressable>
-            </View>
-
-            <ScrollView
-              style={styles.modalScrollView}
-              contentContainerStyle={styles.modalContent}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
-              <Text style={styles.label}>Template Name</Text>
-              <TextInput
-                style={styles.input}
-                value={detailName}
-                onChangeText={setDetailName}
-                placeholder="Template name"
-                autoCapitalize="words"
-              />
-
-              <Text style={[styles.label, { marginTop: 20 }]}>Properties</Text>
-              {detailProps.map((prop) => (
-                <PropertyRow
-                  key={prop.id}
-                  property={prop}
-                  onChange={(field, value) => updateDetailProperty(prop.id, field, value)}
-                  onRemove={() => removeDetailProperty(prop.id)}
-                  canRemove={detailProps.length > 1}
-                />
-              ))}
-
-              <Pressable style={styles.addRowButton} onPress={addDetailProperty}>
-                <Ionicons name="add-circle-outline" size={18} color={colors.brand} />
-                <Text style={styles.addRowText}>Add property</Text>
-              </Pressable>
-            </ScrollView>
-
-            <View style={styles.modalFooter}>
-              {canDelete ? (
-                <Pressable style={styles.dangerButton} onPress={deleteTemplate}>
-                  <Text style={styles.dangerButtonText}>Delete</Text>
-                </Pressable>
-              ) : null}
-              <Pressable style={styles.primaryButton} onPress={saveTemplateEdits}>
-                <Text style={styles.primaryButtonText}>Save</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <ViewTemplateModal
+        visible={detailsVisible}
+        detailName={detailName}
+        onChangeDetailName={setDetailName}
+        detailProps={detailProps}
+        onAddDetailProperty={addDetailProperty}
+        onRemoveDetailProperty={removeDetailProperty}
+        onUpdateDetailProperty={updateDetailProperty}
+        canDelete={canDelete}
+        onDelete={deleteTemplate}
+        onSave={saveTemplateEdits}
+        onClose={() => setDetailsVisible(false)}
+      />
     </View>
   );
 }
@@ -414,13 +328,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   searchInput: { color: "white", marginLeft: 16, flex: 1 },
-
   rowWrap: {
     gap: 16,
     paddingVertical: 12,
     justifyContent: "center",
   },
-
   addCard: {
     justifyContent: "center",
     alignItems: "center",
@@ -450,194 +362,4 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: "700",
   },
-
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.8)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 16,
-  },
-  modal: {
-    width: 540,
-    maxWidth: "100%",
-    maxHeight: "90%",
-    borderRadius: 24,
-    backgroundColor: "#111827",
-    overflow: "hidden",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 18,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.08)",
-  },
-  modalTitle: {
-    color: "white",
-    fontSize: 20,
-    fontWeight: "700",
-  },
-  modalContent: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    gap: 20,
-  },
-  modalFooter: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.08)",
-  },
-
-  label: {
-    color: "#d1d5db",
-    fontWeight: "600",
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    color: "white",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-  },
-  errorText: { color: "#f87171", marginTop: 6 },
-
-  addRowButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  addRowText: {
-    color: colors.brand,
-    fontWeight: "600",
-  },
-  primaryButton: {
-    backgroundColor: colors.brand,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  primaryButtonText: { color: "white", fontWeight: "700" },
-  cancelButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  cancelButtonText: {
-    color: "#d1d5db",
-    fontWeight: "600",
-  },
-  dangerButton: {
-    backgroundColor: "#dc2626",
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  dangerButtonText: { color: "white", fontWeight: "700" },
-
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.8)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modal: {
-    width: "90%",
-    maxWidth: 520,
-    backgroundColor: "white",
-    borderRadius: 16,
-    height: "80%",
-    flexDirection: "column",
-    overflow: "hidden",
-  },
-  modalHeader: {
-    backgroundColor: colors.primary,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
-    flexShrink: 0,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "white",
-  },
-  modalScrollView: { flex: 1 },
-  modalContent: {
-    padding: 20,
-    flexGrow: 1,
-  },
-  modalFooter: {
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#e0e0e0",
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: 12,
-    flexShrink: 0,
-  },
-
-  label: {
-    fontSize: 16,
-    color: colors.primary,
-    marginBottom: 8,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: "#f9f9f9",
-  },
-  errorText: {
-    color: "#f87171",
-    marginTop: 6,
-  },
-
-  addRowButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginTop: 12,
-  },
-  addRowText: {
-    color: colors.brand,
-    fontWeight: "600",
-  },
-  cancelButton: {
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.brand,
-  },
-  cancelButtonText: {
-    color: colors.brand,
-    fontWeight: "600",
-  },
-  primaryButton: {
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: colors.brand,
-  },
-  primaryButtonText: {
-    color: "white",
-    fontWeight: "700",
-  },
-
 });

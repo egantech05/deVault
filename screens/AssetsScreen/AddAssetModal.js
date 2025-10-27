@@ -1,10 +1,11 @@
 // ./AssetsScreen/AddAssetModal.jsx
 import React, { useEffect, useState, useCallback } from "react";
-import { View, Text, ScrollView, Pressable, Modal, Platform, Alert } from "react-native";
+import { View, Text, Pressable, Platform, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 import { supabase } from "../../lib/supabase";
 import { colors } from "../../components/Styles";
+import ModalLarge from "../../components/ModalLarge";
 import styles from "./styles";
 import PropertyField from "./components/PropertyField";
 import { useDatabase } from "../../contexts/DatabaseContext";
@@ -146,132 +147,124 @@ export default function AddAssetModal({ visible, onClose, onCreate }) {
   if (!visible) return null;
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={handleClose}>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modal}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>New Asset</Text>
-            <Pressable onPress={handleClose}>
-              <Ionicons name="close" size={24} color={colors.brand} />
-            </Pressable>
-          </View>
+    <ModalLarge
+      visible={visible}
+      onRequestClose={handleClose}
+      title="New Asset"
+      titleStyle={styles.modalTitle}
+    >
+      <ModalLarge.Body
+        scroll
+        style={styles.modalScrollView}
+        contentContainerStyle={styles.modalContent}
+      >
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Template</Text>
 
-          <ScrollView
-            style={styles.modalScrollView}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            <View style={styles.modalContent}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Template</Text>
-
-                {Platform.OS === "web" ? (
-                  <View style={styles.pickerWrapper}>
-                    <React.Fragment>
-                      <select
-                        value={selectedTemplateId}
-                        onChange={(e) => onTemplateChange(e.target.value)}
-                        style={webSelectStyle}
-                        aria-label="Template"
-                        disabled={loadingTemplates}
-                      >
-                        <option value="">
-                          {loadingTemplates ? "Loading templates…" : "Select a template"}
-                        </option>
-                        {assetTemplates.map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.name}
-                          </option>
-                        ))}
-                      </select>
-                      <View pointerEvents="none" style={styles.webPickerIcon}>
-                        <Ionicons name="chevron-down" size={16} color="#555" />
-                      </View>
-                    </React.Fragment>
-                  </View>
-                ) : (
-                  <View style={styles.pickerWrapper}>
-                    <Picker
-                      selectedValue={selectedTemplateId}
-                      onValueChange={onTemplateChange}
-                      mode="dropdown"
-                      style={styles.picker}
-                      enabled={!loadingTemplates}
-                    >
-                      <Picker.Item
-                        label={loadingTemplates ? "Loading templates…" : "Select a template"}
-                        value=""
-                      />
-                      {assetTemplates.map((t) => (
-                        <Picker.Item key={t.id} label={t.name} value={t.id} />
-                      ))}
-                    </Picker>
-                  </View>
-                )}
-
-                {!loadingTemplates && assetTemplates.length === 0 && (
-                  <Text style={styles.helperText}>No templates yet. Create a template first.</Text>
-                )}
-              </View>
-
-              {!!selectedTemplateId && (
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Properties</Text>
-
-                  {loadingFields && <Text style={styles.helperText}>Loading fields…</Text>}
-
-                  {!loadingFields && propInputs.length === 0 && (
-                    <Text style={styles.helperText}>This template has no fields.</Text>
-                  )}
-
-                  {!loadingFields &&
-                    propInputs.map((p) => (
-                      <View key={p.property_id} style={styles.propertyContainer}>
-                        <Text
-                          style={{
-                            marginBottom: 6,
-                            color: colors.primary,
-                            fontWeight: "600",
-                          }}
-                        >
-                          {p.name}
-                          {p.type === "number"
-                            ? " (Number)"
-                            : p.type === "date"
-                            ? " (Date)"
-                            : ""}
-                        </Text>
-
-                        <PropertyField
-                          type={p.type}
-                          value={p.value}
-                          onChange={(v) => updatePropInput(p.property_id, v)}
-                          style={styles.input}
-                        />
-                      </View>
-                    ))}
+          {Platform.OS === "web" ? (
+            <View style={styles.pickerWrapper}>
+              <React.Fragment>
+                <select
+                  value={selectedTemplateId}
+                  onChange={(e) => onTemplateChange(e.target.value)}
+                  style={webSelectStyle}
+                  aria-label="Template"
+                  disabled={loadingTemplates}
+                >
+                  <option value="">
+                    {loadingTemplates ? "Loading templates…" : "Select a template"}
+                  </option>
+                  {assetTemplates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+                <View pointerEvents="none" style={styles.webPickerIcon}>
+                  <Ionicons name="chevron-down" size={16} color="#555" />
                 </View>
-              )}
+              </React.Fragment>
             </View>
-          </ScrollView>
-
-          <View style={styles.modalFooter}>
-            <View style={styles.buttonContainer}>
-              <Pressable style={styles.cancelButton} onPress={handleClose}>
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </Pressable>
-
-              <Pressable
-                style={[styles.saveButton, { opacity: canSave ? 1 : 0.6 }]}
-                onPress={handleSave}
-                disabled={!canSave}
+          ) : (
+            <View style={styles.pickerWrapper}>
+              <Picker
+                selectedValue={selectedTemplateId}
+                onValueChange={onTemplateChange}
+                mode="dropdown"
+                style={styles.picker}
+                enabled={!loadingTemplates}
               >
-                <Text style={styles.saveButtonText}>Save</Text>
-              </Pressable>
+                <Picker.Item
+                  label={loadingTemplates ? "Loading templates…" : "Select a template"}
+                  value=""
+                />
+                {assetTemplates.map((t) => (
+                  <Picker.Item key={t.id} label={t.name} value={t.id} />
+                ))}
+              </Picker>
             </View>
-          </View>
+          )}
+
+          {!loadingTemplates && assetTemplates.length === 0 && (
+            <Text style={styles.helperText}>No templates yet. Create a template first.</Text>
+          )}
         </View>
-      </View>
-    </Modal>
+
+        {!!selectedTemplateId && (
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Properties</Text>
+
+            {loadingFields && <Text style={styles.helperText}>Loading fields…</Text>}
+
+            {!loadingFields && propInputs.length === 0 && (
+              <Text style={styles.helperText}>This template has no fields.</Text>
+            )}
+
+            {!loadingFields &&
+              propInputs.map((p) => (
+                <View key={p.property_id} style={styles.propertyContainer}>
+                  <Text
+                    style={{
+                      marginBottom: 6,
+                      color: colors.primary,
+                      fontWeight: "600",
+                    }}
+                  >
+                    {p.name}
+                    {p.type === "number"
+                      ? " (Number)"
+                      : p.type === "date"
+                      ? " (Date)"
+                      : ""}
+                  </Text>
+
+                  <PropertyField
+                    type={p.type}
+                    value={p.value}
+                    onChange={(v) => updatePropInput(p.property_id, v)}
+                    style={styles.input}
+                  />
+                </View>
+              ))}
+          </View>
+        )}
+      </ModalLarge.Body>
+
+      <ModalLarge.Footer style={styles.modalFooter}>
+        <View style={styles.buttonContainer}>
+          <Pressable style={styles.cancelButton} onPress={handleClose}>
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </Pressable>
+
+          <Pressable
+            style={[styles.saveButton, { opacity: canSave ? 1 : 0.6 }]}
+            onPress={handleSave}
+            disabled={!canSave}
+          >
+            <Text style={styles.saveButtonText}>Save</Text>
+          </Pressable>
+        </View>
+      </ModalLarge.Footer>
+    </ModalLarge>
   );
 }
