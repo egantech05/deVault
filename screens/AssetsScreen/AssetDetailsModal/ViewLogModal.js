@@ -1,9 +1,10 @@
 import React from "react";
-import { Modal, View, Text, Pressable, ScrollView } from "react-native";
+import { View, Text, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import styles from "../styles";
 import { colors } from "../../../components/Styles";
 import PropertyField from "../components/PropertyField";
+import ModalLarge from "../../../components/ModalLarge";
 
 export default function ViewLogModal({
   visible,
@@ -66,54 +67,47 @@ export default function ViewLogModal({
     return <Text style={{ color: "#888" }}>No values recorded for this log.</Text>;
   };
 
+  if (!visible) return null;
+
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modal, { height: "60%" }]}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{log ? log.typeName : "Log Details"}</Text>
-            <Pressable onPress={onClose}>
-              <Ionicons name="close" size={24} color={colors.brand} />
-            </Pressable>
-          </View>
+    <ModalLarge visible={visible} onRequestClose={onClose}>
+      <ModalLarge.Header>
+        <ModalLarge.Title>{log ? log.typeName : "Log Details"}</ModalLarge.Title>
+        <Pressable onPress={onClose} hitSlop={8}>
+          <Ionicons name="close" size={24} color={colors.brand} />
+        </Pressable>
+      </ModalLarge.Header>
 
-          <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false}>
-            <View style={styles.modalContent}>{renderModalContent()}</View>
-          </ScrollView>
+      <ModalLarge.Body scroll>{renderModalContent()}</ModalLarge.Body>
 
-          <View style={styles.modalFooter}>
-            {log ? (
-              logEditing ? (
-                <View style={[styles.buttonContainer, { alignItems: "stretch" }]}>
-                  <Pressable
-                    style={[styles.cancelButton, { flex: 1, marginRight: 8 }]}
-                    onPress={onCancelEdit}
-                    disabled={savingLog}
-                  >
-                    <Text style={styles.cancelButtonText}>Cancel</Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.saveButton, { flex: 1, opacity: savingLog ? 0.6 : 1 }]}
-                    onPress={onSave}
-                    disabled={savingLog}
-                  >
-                    <Text style={styles.saveButtonText}>{savingLog ? "Saving…" : "Save"}</Text>
-                  </Pressable>
-                </View>
-              ) : (
-                <View style={[styles.buttonContainer, { alignItems: "center" }]}>
-                  <Pressable
-                    style={[styles.footerPrimaryButton, { flex: 1 }]}
-                    onPress={onStartEdit}
-                  >
-                    <Text style={styles.saveButtonText}>Edit Log</Text>
-                  </Pressable>
-                </View>
-              )
-            ) : null}
-          </View>
-        </View>
-      </View>
-    </Modal>
+      {log ? (
+        <ModalLarge.Footer>
+          {logEditing ? (
+            <View style={[styles.buttonContainer, { alignItems: "stretch" }]}>
+              <Pressable
+                style={[styles.cancelButton, { flex: 1, marginRight: 8 }]}
+                onPress={onCancelEdit}
+                disabled={savingLog}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.saveButton, { flex: 1, opacity: savingLog ? 0.6 : 1 }]}
+                onPress={onSave}
+                disabled={savingLog}
+              >
+                <Text style={styles.saveButtonText}>{savingLog ? "Saving…" : "Save"}</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={[styles.buttonContainer, { alignItems: "center" }]}>
+              <Pressable style={[styles.footerPrimaryButton, { flex: 1 }]} onPress={onStartEdit}>
+                <Text style={styles.saveButtonText}>Edit Log</Text>
+              </Pressable>
+            </View>
+          )}
+        </ModalLarge.Footer>
+      ) : null}
+    </ModalLarge>
   );
 }

@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Alert, Modal, Pressable, ScrollView, Text, View } from "react-native";
+import { Alert, Pressable, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import styles from "../styles";
 import { colors } from "../../../components/Styles";
 import PropertyField from "../components/PropertyField";
 import { fetchLogTemplates, insertLog, fetchTemplateFields } from "../../../services/logsApi";
 import { useDatabase } from "../../../contexts/DatabaseContext";
+import ModalLarge from "../../../components/ModalLarge";
 
 export default function AddLogModal({ visible, onClose, assetId, onLogCreated }) {
   const { activeDatabaseId, openCreateModal } = useDatabase();
@@ -142,78 +143,68 @@ export default function AddLogModal({ visible, onClose, assetId, onLogCreated })
   if (!visible) return null;
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modal, { height: "60%" }]}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>New Log</Text>
-            <Pressable onPress={onClose}>
-              <Ionicons name="close" size={24} color={colors.brand} />
-            </Pressable>
-          </View>
+    <ModalLarge visible={visible} onRequestClose={onClose}>
+      <ModalLarge.Header>
+        <ModalLarge.Title>New Log</ModalLarge.Title>
+        <Pressable onPress={onClose} hitSlop={8}>
+          <Ionicons name="close" size={24} color={colors.brand} />
+        </Pressable>
+      </ModalLarge.Header>
 
-          <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false}>
-            <View style={styles.modalContent}>
-              {!selectedTemplate ? (
-                <View>
-                  <Text style={[styles.label, { marginBottom: 8 }]}>Choose a template</Text>
-                  {loadingLogTemplates ? (
-                    <Text style={{ color: "#666" }}>Loading templates…</Text>
-                  ) : logTemplates.length ? (
-                    logTemplates.map((tpl) => (
-                      <Pressable key={tpl.id} style={styles.templateCard} onPress={() => handleSelectTemplate(tpl)}>
-                        <Text style={styles.templateCardTitle}>{tpl.name}</Text>
-                      </Pressable>
-                    ))
-                  ) : (
-                    <Text style={{ color: "#888" }}>No log templates yet.</Text>
-                  )}
-                </View>
-              ) : (
-                <>
-                  <Text style={[styles.label, { marginBottom: 8 }]}>{selectedTemplate.name}</Text>
-                  {logFields.map((field) => (
-                    <View key={field.id} style={styles.propertyContainer}>
-                      <Text style={{ marginBottom: 6, color: colors.primary, fontWeight: "600" }}>{field.name}</Text>
-                      <PropertyField
-                        type={field.property_type}
-                        value={field.value}
-                        onChange={(val) => handleFieldChange(field.id, val)}
-                        style={styles.input}
-                      />
-                    </View>
-                  ))}
-                </>
-              )}
-            </View>
-          </ScrollView>
-
-          <View style={styles.modalFooter}>
-            <View style={[styles.buttonContainer, { alignItems: "stretch" }]}>
-              <Pressable
-                style={[styles.cancelButton, { flex: 1, marginRight: 8 }]}
-                onPress={onClose}
-                disabled={saving}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={[
-                  styles.saveButton,
-                  {
-                    flex: 1,
-                    opacity: saving || !selectedTemplate ? 0.6 : 1,
-                  },
-                ]}
-                onPress={handleSave}
-                disabled={saving || !selectedTemplate}
-              >
-                <Text style={styles.saveButtonText}>{saving ? "Saving…" : "Create Log"}</Text>
-              </Pressable>
-            </View>
+      <ModalLarge.Body scroll>
+        {!selectedTemplate ? (
+          <View>
+            <Text style={[styles.label, { marginBottom: 8 }]}>Choose a template</Text>
+            {loadingLogTemplates ? (
+              <Text style={{ color: "#666" }}>Loading templates…</Text>
+            ) : logTemplates.length ? (
+              logTemplates.map((tpl) => (
+                <Pressable key={tpl.id} style={styles.templateCard} onPress={() => handleSelectTemplate(tpl)}>
+                  <Text style={styles.templateCardTitle}>{tpl.name}</Text>
+                </Pressable>
+              ))
+            ) : (
+              <Text style={{ color: "#888" }}>No log templates yet.</Text>
+            )}
           </View>
+        ) : (
+          <>
+            <Text style={[styles.label, { marginBottom: 8 }]}>{selectedTemplate.name}</Text>
+            {logFields.map((field) => (
+              <View key={field.id} style={styles.propertyContainer}>
+                <Text style={{ marginBottom: 6, color: colors.primary, fontWeight: "600" }}>{field.name}</Text>
+                <PropertyField
+                  type={field.property_type}
+                  value={field.value}
+                  onChange={(val) => handleFieldChange(field.id, val)}
+                  style={styles.input}
+                />
+              </View>
+            ))}
+          </>
+        )}
+      </ModalLarge.Body>
+
+      <ModalLarge.Footer>
+        <View style={[styles.buttonContainer, { alignItems: "stretch" }]}>
+          <Pressable style={[styles.cancelButton, { flex: 1, marginRight: 8 }]} onPress={onClose} disabled={saving}>
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </Pressable>
+          <Pressable
+            style={[
+              styles.saveButton,
+              {
+                flex: 1,
+                opacity: saving || !selectedTemplate ? 0.6 : 1,
+              },
+            ]}
+            onPress={handleSave}
+            disabled={saving || !selectedTemplate}
+          >
+            <Text style={styles.saveButtonText}>{saving ? "Saving…" : "Create Log"}</Text>
+          </Pressable>
         </View>
-      </View>
-    </Modal>
+      </ModalLarge.Footer>
+    </ModalLarge>
   );
 }
