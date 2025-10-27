@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { commonStyles } from "../components/Styles";
 import warehouseStyles from "./WarehouseScreen/styles";
 import DashedRowButton from "../components/DashedRowButton";
+import SearchBar from "../components/SearchBar";
 import { useLinkedDocsList } from "../hooks/useLinkedDocuments";
 import AddLinkedDocModal from "./LinkedDocumentsScreen/AddLinkedDocModal";
 import { supabase } from "../lib/supabase";

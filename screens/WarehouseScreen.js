@@ -5,20 +5,19 @@ import {
   Text,
   FlatList,
   useWindowDimensions,
-  TextInput,
   Pressable,
   Alert,
   ActivityIndicator,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import { colors, commonStyles } from "../components/Styles";
 import SearchBar from "../components/SearchBar";
 import { getCardSize } from "../utils/cardLayout";
 import { supabase } from "../lib/supabase";
 import WarehouseModal from "./WarehouseScreen/WarehouseModal";
-import styles from "./WarehouseScreen/styles";
+import styles from "./WarehouseScreen/styles"; // keep qty badge, texts, search/hist styles here
 import AddComponentModal from "./WarehouseScreen/AddComponentModal";
 import { useDatabase } from "../contexts/DatabaseContext";
+import { AddCard, DisplayCard } from "../components/Cards";
 
 export default function WarehouseScreen() {
   const { width } = useWindowDimensions();
@@ -34,12 +33,16 @@ export default function WarehouseScreen() {
   const [components, setComponents] = useState([]);
   const [moves, setMoves] = useState([]);
 
+  // Layout
   const cardSize = getCardSize(width);
-  const addIconSize = 0.5 * cardSize;
-  const numColumns = useMemo(() => Math.max(1, Math.floor(width / (cardSize + 16))), [width, cardSize]);
+  const numColumns = useMemo(
+    () => Math.max(1, Math.floor(width / (cardSize + 16))),
+    [width, cardSize]
+  );
   const gridKey = useMemo(() => `warehouse-cols-${numColumns}`, [numColumns]);
-  const rowStyle = { justifyContent: "center" };
+  const rowStyle = { justifyContent: "center", gap: 16, paddingVertical: 12 };
 
+  // Data loads
   const loadComponents = useCallback(async () => {
     if (!activeDatabaseId) {
       setComponents([]);
@@ -104,6 +107,7 @@ export default function WarehouseScreen() {
     else setMoves([]);
   }, [showHistorical, loadHistory]);
 
+  // Filtering
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return components;
@@ -133,45 +137,65 @@ export default function WarehouseScreen() {
     return true;
   };
 
+  // Grid items
   const renderGridItem = ({ item }) => {
     if (item._type === "add") {
       return (
-        <Pressable
-          style={[styles.addCard, { width: cardSize, height: cardSize }]}
+        <AddCard
+          size={cardSize}
+          iconColor={colors.brand}
+          bgColor={colors.secondary}
           onPress={() => {
             if (!ensureDatabaseSelected()) return;
             setAddVisible(true);
           }}
-          accessibilityRole="button"
-        >
-          <Ionicons name="add" size={addIconSize} color={colors.brand} />
-        </Pressable>
+          style={{}} // spacing comes from row gap
+        />
       );
     }
+
     const c = item;
     return (
-      <Pressable
-        style={[styles.displayCard, { width: cardSize, height: cardSize }]}
+      <DisplayCard
+        size={cardSize}
+        variant="tile"
+        withBorder
+        backgroundColor="#FFFFFF"
+        borderColor="#E5E7EB"
+        style={{ alignItems: "stretch" }} // let children fill full width
         onPress={() => setSelected(c)}
-        accessibilityRole="button"
       >
-        <View style={styles.qtyBadge}>
-          <Text style={[styles.qtyBadgeText, { fontSize: cardSize * 0.13 }]}>
-            {c.qty_on_hand ?? 0}
-          </Text>
+        <View style={{ flex: 1 }}>
+          {/* top-right qty badge */}
+          <View style={{ alignSelf: "stretch", alignItems: "flex-end" }}>
+            <View style={styles.qtyBadge}>
+              <Text style={[styles.qtyBadgeText, { fontSize: cardSize * 0.13 }]}>
+                {c.qty_on_hand ?? 0}
+              </Text>
+            </View>
+          </View>
+
+          {/* bottom text block */}
+          <View style={[styles.cardBottom, { marginTop: "auto" }]}>
+            <Text
+              numberOfLines={1}
+              style={[styles.modelText, { fontSize: cardSize * 0.13 }]}
+            >
+              {c.model}
+            </Text>
+            <Text
+              numberOfLines={1}
+              style={[styles.mfgText, { fontSize: cardSize * 0.08 }]}
+            >
+              {c.manufacturer || "-"}
+            </Text>
+          </View>
         </View>
-        <View style={styles.cardBottom}>
-          <Text numberOfLines={1} style={[styles.modelText, { fontSize: cardSize * 0.13 }]}>
-            {c.model}
-          </Text>
-          <Text numberOfLines={1} style={[styles.mfgText, { fontSize: cardSize * 0.08 }]}>
-            {c.manufacturer || "-"}
-          </Text>
-        </View>
-      </Pressable>
+      </DisplayCard>
     );
   };
 
+  // History row
   const renderMove = ({ item: m }) => (
     <View style={styles.historyRow}>
       <View style={{ flex: 1 }}>
@@ -202,7 +226,7 @@ export default function WarehouseScreen() {
           placeholder="Search..."
           autoCapitalize="none"
           autoCorrect={false}
-          style={{ flex: 1 }} 
+          style={{ flex: 1 }}
         />
         <Pressable
           onPress={() => {
@@ -242,7 +266,7 @@ export default function WarehouseScreen() {
           renderItem={renderGridItem}
           numColumns={numColumns}
           columnWrapperStyle={numColumns > 1 ? rowStyle : null}
-          contentContainerStyle={numColumns === 1 ? styles.displayCardContainer : undefined}
+          contentContainerStyle={numColumns === 1 ? rowStyle : undefined}
           ListEmptyComponent={
             <Text style={{ color: "#888", marginTop: 12 }}>No components yet.</Text>
           }
@@ -261,8 +285,6 @@ export default function WarehouseScreen() {
         onClose={() => setAddVisible(false)}
         onCreated={loadComponents}
       />
-
-      {false}
     </View>
   );
 }
