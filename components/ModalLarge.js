@@ -99,7 +99,7 @@ ModalLarge.Footer = ({ children, style }) => (
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(17, 24, 39, 0.85)",
+    backgroundColor: "rgba(25, 25, 26, 0.85)",
     justifyContent: "center",
     alignItems: "center",
     padding: 24,
