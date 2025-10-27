@@ -4,6 +4,7 @@ import {
   Text,
   FlatList,
   useWindowDimensions,
+  TextInput,
   Pressable,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -15,6 +16,7 @@ import { colors, commonStyles } from "../components/Styles";
 import AutoShrinkText from "../components/AutoShrinkText";
 import { getCardSize } from "../utils/cardLayout";
 import SearchBar from "../components/SearchBar";
+import { AddCard, DisplayCard } from "../components/Cards";
 
 export default function AssetsScreen() {
   const { width } = useWindowDimensions();
@@ -69,40 +71,53 @@ export default function AssetsScreen() {
     // Add tile
     if (item._type === "add") {
       return (
-        <Pressable
-          style={[styles.addCard, { width: cardSize, height: cardSize }]}
+        <AddCard
+          size={cardSize}
           onPress={() => setIsModalVisible(true)}
-        >
-          <Ionicons name="add" size={addIconSize} color={colors.brand} />
-        </Pressable>
+          iconColor={colors.brand}
+          bgColor={colors.secondary}       
+          style={{ margin: 8 }}
+        />
       );
     }
 
     // Asset tiles
     return (
-      <Pressable
-        key={item.id}
-        style={[styles.displayCard, { width: cardSize, height: cardSize }]}
+      <DisplayCard
+        size={cardSize}
+        variant="tile"                      // centered tile
+        withBorder
+        backgroundColor="#FFFFFF"
+        borderColor="#E5E7EB"
+        style={{ margin: 8, alignItems: "stretch" }}
         onPress={() => openAssetDetails(item)}
       >
+        {/* top small text */}
         <AutoShrinkText
-          style={[styles.templateText, { fontSize: cardSize * 0.1 }]}
-          initialSize={cardSize * 0.1}
+          style={[
+            { fontSize: cardSize * 0.10, color: "#6B7280", textAlign: "right" },
+            styles.templateText,
+          ]}
+          initialSize={cardSize * 0.10}
           maxLines={2}
         >
           {item.templateName}
         </AutoShrinkText>
-
-        <View style={styles.nameTextWrap}>
+    
+        {/* bottom big text */}
+        <View style={[{ maxWidth: "100%" }, styles.nameTextWrap]}>
           <AutoShrinkText
-            style={[styles.nameText, { fontSize: cardSize * 0.15 }]}
+            style={[
+              { fontSize: cardSize * 0.15, color: "#111827", textAlign: "left" },
+              styles.nameText,
+            ]}
             initialSize={cardSize * 0.15}
             maxLines={2}
           >
             {item.firstProp}
           </AutoShrinkText>
         </View>
-      </Pressable>
+      </DisplayCard>
     );
   };
 
@@ -110,7 +125,12 @@ export default function AssetsScreen() {
     <View style={commonStyles.contentContainer}>
       <Text style={commonStyles.textPrimary}>Assets</Text>
 
-      <SearchBar value={searchQuery} onChangeText={setSearchQuery} />
+      <SearchBar
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+        iconColor="white"
+        placeholder="Search..."
+      />
 
       <FlatList
         key={listKey}
