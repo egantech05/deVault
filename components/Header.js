@@ -5,7 +5,7 @@ import { commonStyles, colors } from "./Styles";
 import UserProfileDropdown from "./UserProfileDropdown";
 import { useAuth } from "../contexts/AuthContext";
 
-export const Header = ({ showMenuBtn, onMenuPress, title = "Ssetra" }) => {
+export const Header = ({ showMenuBtn, onMenuPress, title = "AssetCore" }) => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const { user, profile } = useAuth();
 

@@ -374,7 +374,7 @@ export default function SignUpModal({ visible, onClose, onSuccess }) {
             </View>
             <Text style={styles.successTitle}>Account Created Successfully! 🎉</Text>
             <Text style={styles.successMessage}>
-              Welcome to Ssetra, {formData.firstName}!
+              Welcome to AssetCore, {formData.firstName}!
             </Text>
             <Text style={styles.successSubMessage}>
               Please check your email ({formData.email}) for a confirmation link to activate your account.

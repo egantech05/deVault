@@ -12,7 +12,7 @@ export default function App() {
     <SafeAreaProvider>
       <AuthProvider>
         <DatabaseProvider>
-          <NavigationContainer documentTitle={{ formatter: () => 'Ssetra' }}>
+          <NavigationContainer documentTitle={{ formatter: () => 'AssetCore' }}>
             <StackNavigator />
           </NavigationContainer>
           <CreateDatabaseModal />

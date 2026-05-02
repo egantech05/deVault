@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Ssetra",
-    "slug": "ssetra",
+    "name": "AssetCore",
+    "slug": "AssetCore",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
